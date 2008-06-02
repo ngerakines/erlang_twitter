@@ -1,8 +1,8 @@
-%% twitter_client:start("mybot", "mybotpass").
-%% gen_server:call(mybot, verify).
-%% gen_server:call(mybot, user_timeline).
 -module(twitter_client).
 -behaviour(gen_server).
+
+-author("Nick Gerakines <nick@gerakines.net>").
+-version("0.1").
 
 -compile(export_all).
 
@@ -20,9 +20,11 @@
 -record(status, {created_at, id, text, source, truncated, in_reply_to_status_id, in_reply_to_user_id, favorited, user}).
 -record(user, {id, name, screen_name, location, description, profile_image_url, url, protected, followers_count}).
 
+%% todo: Do some checking to see if the process already exists.
 start(Login, Password) ->
     gen_server:start_link({local, list_to_atom(Login)}, ?MODULE, [Login, Password], []).
 
+%% todo: Add the process to a pg2 pool
 init([Login, Password]) ->
     {ok, #state{login = Login, password = Password }}.
 

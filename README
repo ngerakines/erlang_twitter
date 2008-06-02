@@ -1,1 +1,7 @@
 erlang_twitter contains an Erlang twitter client. This code is still under active development.
+
+Using this module is pretty simple:
+1> inets:start().
+2> twitter_client:start("myname", "pass").
+3> gen_server:call(myname, verify).
+4> gen_server:call(myname, user_timeline).
