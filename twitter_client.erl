@@ -32,6 +32,14 @@ handle_call(verify, _From, State) ->
     Response = twitter_client:verify_credentials(State#state.login, State#state.password),
     {reply, Response, State};
 
+handle_call({friends_timeline, Friend, Since}, _From, State) ->
+    Response = twitter_client:friends_timeline(State#state.login, State#state.password, Friend, Since),
+    {reply, Response, State};
+
+handle_call(friends_timeline, _From, State) ->
+    Response = twitter_client:friends_timeline(State#state.login, State#state.password),
+    {reply, Response, State};
+
 handle_call(user_timeline, _From, State) ->
     Response = twitter_client:user_timeline(State#state.login, State#state.password),
     {reply, Response, State};
@@ -90,11 +98,24 @@ user_timeline(Login, Password) ->
     Body = request_url(Url, Login, Password),
     parse_statuses(Body).
 
+show(Login, Password, Id) ->
+    Url = "http://twitter.com/statuses/show/" ++ Id ++ ".xml",
+    Body = request_url(Url, Login, Password),
+    parse_statuses(Body).
+
+update(Login, Password, Status) ->
+    Url = "http://twitter.com/statuses/update.xml?status=" ++ Status,
+    Body = request_url(post, Url, Login, Password),
+    parse_statuses(Body).
+
 %% pragma mark -
 %% pragma mark Internal request functions
 
 request_url(Url, Login, Pass) ->
-    HTTPResult = http:request(get, {Url, headers(Login, Pass)}, [], []),
+    request_url(get, Url, Login, Pass).
+
+request_url(Type, Url, Login, Pass) ->
+    HTTPResult = http:request(Type, {Url, headers(Login, Pass)}, [], []),
     case HTTPResult of
         {ok, {_Status, _Headers, Body}} -> Body;
         _ -> {error}
