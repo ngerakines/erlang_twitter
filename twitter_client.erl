@@ -151,6 +151,26 @@ collect_direct_messages(Login, Password, Page, LowID, Acc) ->
         _ -> lists:flatten([Messages | Acc])
     end.
 
+direct_new(Login, Password, Args) ->
+    Url = "http://twitter.com/direct_messages/new.xml",
+    Body = request_url(post, Url, Login, Password, Args),
+    parse_status(Body).
+
+direct_sent(Login, Password, Args) ->
+    Url = build_url("http://twitter.com/direct_messages/sent.xml", Args),
+    Body = request_url(get, Url, Login, Password, nil),
+    parse_statuses(Body).
+
+direct_destroy(Login, Password, Args) ->
+    UrlBase = "http://twitter.com/direct_messages/destroy/",
+    case Args of
+        [{"id", Id}] ->
+            Url = build_url(UrlBase ++ Id ++ ".xml", []),
+            Body = request_url(get, Url, Login, Password, nil),
+            parse_status(Body);
+        _ -> {error}
+    end.
+
 %% -
 %% User API methods
 
