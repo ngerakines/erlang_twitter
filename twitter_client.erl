@@ -24,7 +24,7 @@ call(Client, Method) ->
     twitter_client:call(Client, Method, []).
 
 call(Client, Method, Args) when is_atom(Client) ->
-    gen_server:call(Client, {Method, Args}).
+    gen_server:call(Client, {Method, Args}, infinity).
 
 %% -
 %% gen_server functions
@@ -36,6 +36,10 @@ init([Login, Password]) ->
 handle_call({collect_direct_messages, LowID}, _From, State) ->
     Messages = twitter_client:collect_direct_messages(State#state.login, State#state.password, 0, LowID, []),
     {reply, Messages, State};
+
+handle_call({collect_user_followers, _}, _From, State) ->
+    Followers = twitter_client:collect_user_followers(State#state.login, State#state.password, 0, []),
+    {reply, Followers, State};
 
 handle_call({Method, Args}, _From, State) ->
     Response = case erlang:function_exported(twitter_client, Method, 3) of 
@@ -116,6 +120,9 @@ status_destroy(Login, Password, Args) ->
         _ -> {error}
     end.
 
+%% -
+%% Account API methods
+
 account_verify_credentials(Login, Password, _) ->
     Url = build_url("http://twitter.com/account/verify_credentials.xml", []),
     case request_url(get, Url, Login, Password, nil) of
@@ -127,6 +134,9 @@ account_end_session(Login, Password, _) ->
     Url = build_url("http://twitter.com/account/end_session", []),
     request_url(get, Url, Login, Password, nil).
 
+%% -
+%% Direct Message API methods
+
 direct_messages(Login, Password, Args) ->
     Url = build_url("http://twitter.com/direct_messages.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
@@ -137,7 +147,8 @@ collect_direct_messages(Login, Password, Page, LowID, Acc) ->
     Messages = twitter_client:direct_messages(Login, Password, Args),
     case length(Messages) of
         20 -> collect_direct_messages(Login, Password, Page + 1, LowID, [Messages | Acc]);
-        _ -> lists:flatten(Acc)
+        0 -> lists:flatten(Acc);
+        _ -> lists:flatten([Messages | Acc])
     end.
 
 %% -
@@ -158,6 +169,14 @@ user_followers(Login, Password, Args) ->
     Url = build_url("http://twitter.com/statuses/followers.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
     parse_users(Body).
+
+collect_user_followers(Login, Password, Page, Acc) ->
+    Followers = twitter_client:user_followers(Login, Password, [{"page", integer_to_list(Page)}, {"lite", "true"}]),
+    case length(Followers) of
+        100 -> collect_user_followers(Login, Password, Page + 1, [Followers | Acc]);
+        0 -> lists:flatten(Acc);
+        _ -> lists:flatten([Followers | Acc])
+    end.
 
 user_featured(_, _, _) ->
     Url = build_url("http://twitter.com/statuses/featured.xml", []),

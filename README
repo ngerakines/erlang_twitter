@@ -12,3 +12,10 @@ OR
 7> twitter_client:call(myname, user_timeline).
 
 * twitterbot -- A module that provides the structure to create a twitter bot.
+
+1> inets:start().
+2> twitterbot:start("mybot", "mybotpassword").
+3> gen_server:call(twitterbot:clean_name("mybot"), {info}).
+4> gen_server:call(twitterbot:clean_name("mybot"), {start_dmloop}).
+5> gen_server:call(twitterbot:clean_name("mybot"), {start_flwloop}).
+6> gen_server:call(twitterbot:clean_name("mybot"), {followers}).

@@ -14,7 +14,7 @@
 -include("twitter_client.hrl").
 -include_lib("xmerl/include/xmerl.hrl").
 
--record(state, {login, password, usertable, updateproc, lastcheck, checkinterval}).
+-record(state, {login, password, usertable, dmloop, flwloop, lastcheck, checkinterval}).
 
 clean_name(Name) -> list_to_atom(lists:concat(["twitterbot_", Name])).
 
@@ -27,9 +27,23 @@ call(Client, Method) ->
 
 call(Client, Method, Args) ->
     gen_server:call(clean_name(Client), {Method, Args}).
- 
-update_loop(Name) ->
-    LowId = gen_server:call(twitterbot:clean_name(Name), {lastcheck}),
+
+followers_loop(Name) ->
+    io:format("Checking for new followers.~n", []),
+    
+    Followers = twitter_client:call(list_to_atom("treasury"), collect_user_followers),
+    io:format("Followers: ~p~n", [Followers]),
+    [begin
+        io:format("Processing follower ~p~n", [Follower]),
+        gen_server:call(twitterbot:clean_name(Name), {follower, Follower}, infinity)
+    end || Follower <- Followers],
+
+    SleepTime = gen_server:call(twitterbot:clean_name(Name), {checkinterval}, infinity),
+    timer:sleep(SleepTime),
+    twitterbot:followers_loop(Name).
+
+direct_message_loop(Name) ->
+    LowId = gen_server:call(twitterbot:clean_name(Name), {lastcheck}, infinity),
     io:format("Checking for new messages: lowid ~p~n", [LowId]),
     
     NewMessages = twitter_client:call(list_to_atom(Name), collect_direct_messages, LowId),
@@ -37,12 +51,18 @@ update_loop(Name) ->
         0 -> ok;
         _ ->
             [LastId | _] = lists:usort([Status#status.id || Status <- NewMessages]),
-            gen_server:call(twitterbot:clean_name(Name), {lastcheck, LastId})
+            gen_server:call(twitterbot:clean_name(Name), {lastcheck, list_to_integer(LastId)}, infinity),
+            twitterbot:process_direct_messages(NewMessages, Name)
     end,
     
-    SleepTime = gen_server:call(twitterbot:clean_name(Name), {checkinterval}),
+    SleepTime = gen_server:call(twitterbot:clean_name(Name), {checkinterval}, infinity),
     timer:sleep(SleepTime),
-    twitterbot:update_loop(Name).
+    twitterbot:direct_message_loop(Name).
+
+process_direct_messages([], _) -> ok;
+process_direct_messages([Message | Messages], Name) ->
+    io:format("Recieved message (~p) '~p'~n", [Message#status.id, Message#status.text]),
+    process_direct_messages(Messages, Name).
 
 %% -
 %% gen_server functions
@@ -54,7 +74,7 @@ init([Login, Password]) ->
         login = Login,
         password = Password,
         usertable = UserTable,
-        checkinterval = 60000 * 5,
+        checkinterval = 60000 * 1,
         lastcheck = 5000
     },
     {ok, State}.
@@ -69,24 +89,54 @@ handle_call({lastcheck}, _From, State) -> {reply, State#state.lastcheck, State};
 
 handle_call({lastcheck, X}, _From, State) -> {reply, ok, State#state{ lastcheck = X }};
 
-handle_call({check_updater}, _From, State) ->
-    Response = case erlang:is_pid(State#state.updateproc) of
+handle_call({follower, User}, _From, State) ->
+    ets:insert(State#state.usertable, {User#user.id, User#user.name, User#user.screen_name}),
+    {reply, ok, State};
+
+handle_call({followers}, _From, State) ->
+    Response = ets:foldl(fun(R, Acc) -> [R | Acc] end, [], State#state.usertable),
+    {reply, Response, State};
+
+%% dmloop, flwloop
+handle_call({check_dmloop}, _From, State) ->
+    Response = case erlang:is_pid(State#state.dmloop) of
         false -> false;
-        true -> erlang:is_process_alive(State#state.updateproc)
+        true -> erlang:is_process_alive(State#state.dmloop)
     end,
     {reply, Response, State};
 
-handle_call({start_updater}, _From, State) ->
-    case erlang:is_pid(State#state.updateproc) of
+handle_call({start_dmloop}, _From, State) ->
+    case erlang:is_pid(State#state.dmloop) of
         false -> ok;
         true ->
-            case erlang:is_process_alive(State#state.updateproc) of
+            case erlang:is_process_alive(State#state.dmloop) of
                 false -> ok;
-                true -> erlang:exit(State#state.updateproc, kill)
+                true -> erlang:exit(State#state.dmloop, kill)
             end
     end,
     NewState = State#state{
-        updateproc = spawn(?MODULE, update_loop, [State#state.login])
+        dmloop = spawn(twitterbot, direct_message_loop, [State#state.login])
+    },
+    {reply, ok, NewState};
+
+handle_call({check_flwloop}, _From, State) ->
+    Response = case erlang:is_pid(State#state.flwloop) of
+        false -> false;
+        true -> erlang:is_process_alive(State#state.flwloop)
+    end,
+    {reply, Response, State};
+
+handle_call({start_flwloop}, _From, State) ->
+    case erlang:is_pid(State#state.flwloop) of
+        false -> ok;
+        true ->
+            case erlang:is_process_alive(State#state.flwloop) of
+                false -> ok;
+                true -> erlang:exit(State#state.flwloop, kill)
+            end
+    end,
+    NewState = State#state{
+        flwloop = spawn(twitterbot, followers_loop, [State#state.login])
     },
     {reply, ok, NewState};
 
