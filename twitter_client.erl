@@ -11,14 +11,10 @@
     handle_call/3, handle_cast/2, handle_info/2
 ]).
 
--define(USER_AGENT, "ErlangTwitterClient/0.1").
--define(ACCEPT_CHARSET, "utf-8").
-
+-include("twitter_client.hrl").
 -include_lib("xmerl/include/xmerl.hrl").
 
 -record(state, {login, password}).
--record(status, {created_at, id, text, source, truncated, in_reply_to_status_id, in_reply_to_user_id, favorited, user}).
--record(user, {id, name, screen_name, location, description, profile_image_url, url, protected, followers_count, status, profile_background_color, profile_text_color, profile_link_color, profile_sidebar_fill_color, profile_sidebar_border_color, friends_count, created_at, favourites_count, utc_offset, time_zone, following, notifications, statuses_count}).
 
 %% todo: Do some checking to see if the process already exists.
 start(Login, Password) ->
@@ -37,10 +33,14 @@ call(Client, Method, Args) when is_atom(Client) ->
 init([Login, Password]) ->
     {ok, #state{login = Login, password = Password }}.
 
+handle_call({collect_direct_messages, LowID}, _From, State) ->
+    Messages = twitter_client:collect_direct_messages(State#state.login, State#state.password, 0, LowID, []),
+    {reply, Messages, State};
+
 handle_call({Method, Args}, _From, State) ->
-    Response = case erlang:function_exported(?MODULE, Method, 3) of 
+    Response = case erlang:function_exported(twitter_client, Method, 3) of 
         false -> {error, unsupported_method};
-        _ -> apply(?MODULE, Method, [State#state.login, State#state.password, Args])
+        _ -> apply(twitter_client, Method, [State#state.login, State#state.password, Args])
     end,
     {reply, Response, State};
 
@@ -127,6 +127,19 @@ account_end_session(Login, Password, _) ->
     Url = build_url("http://twitter.com/account/end_session", []),
     request_url(get, Url, Login, Password, nil).
 
+direct_messages(Login, Password, Args) ->
+    Url = build_url("http://twitter.com/direct_messages.xml", Args),
+    Body = request_url(get, Url, Login, Password, nil),
+    parse_statuses(Body).
+
+collect_direct_messages(Login, Password, Page, LowID, Acc) ->
+    Args = [{"page", integer_to_list(Page)}, {"since_id", integer_to_list(LowID)}],
+    Messages = twitter_client:direct_messages(Login, Password, Args),
+    case length(Messages) of
+        20 -> collect_direct_messages(Login, Password, Page + 1, LowID, [Messages | Acc]);
+        _ -> lists:flatten(Acc)
+    end.
+
 %% -
 %% User API methods
 
@@ -160,7 +173,7 @@ user_show(Login, Password, Args) ->
             build_url(UrlBase ++ "/" ++ Id ++ ".xml", RetArgs)
     end,
     Body = request_url(get, Url, Login, Password, nil),
-    parse_user(Body).
+    parse_statuses(Body).
 
 %% -
 %% Internal request functions
@@ -199,11 +212,11 @@ request_url(post, Url, Login, Pass, Args) ->
         _ -> {error}
     end.
 
-headers(nil, nil) -> [{"User-Agent", ?USER_AGENT}];
+headers(nil, nil) -> [{"User-Agent", "ErlangTwitterClient/0.1"}];
 headers(User, Pass) -> 
     UP = base64:encode(User ++ ":" ++ Pass),
     Basic = lists:flatten(io_lib:fwrite("Basic ~s", [UP])),
-    [{"User-Agent", ?USER_AGENT}, {"Authorization", Basic}].
+    [{"User-Agent", "ErlangTwitterClient/0.1"}, {"Authorization", Basic}].
 
 %% -
 %% Response parsing functions
@@ -214,22 +227,22 @@ parse_statuses(Body) ->
         {error, _} -> {error};
         Result ->
             {Xml, _Rest} = Result,
-            [parse_status(Node) || Node <- xmerl_xpath:string("/statuses/status", Xml)]
+            [parse_status(Node) || Node <- xmerl_xpath:string("/statuses/status|/direct-messages/direct_message", Xml)]
     end.
 
 %% todo: Find a better way to do this.
 parse_status(Node) when is_tuple(Node) ->
     Status = #status{
-        created_at = text_or_default(Node, "/status/created_at/text()", ""),
-        id = text_or_default(Node, "/status/id/text()", ""),
-        text = text_or_default(Node, "/status/text/text()", ""),
-        source = text_or_default(Node, "/status/source/text()", ""),
-        truncated = text_or_default(Node, "/status/truncated/text()", ""),
-        in_reply_to_status_id = text_or_default(Node, "/status/in_reply_to_status_id/text()", ""),
-        in_reply_to_user_id = text_or_default(Node, "/status/in_reply_to_user_id/text()", ""),
-        favorited = text_or_default(Node, "/status/favorited/text()", "")
+        created_at = text_or_default(Node, "/status/created_at/text()|/direct_message/created_at/text()", ""),
+        id = text_or_default(Node, "/status/id/text()|/direct_message/id/text()", ""),
+        text = text_or_default(Node, "/status/text/text()|/direct_message/text/text()", ""),
+        source = text_or_default(Node, "/status/source/text()|/direct_message/source/text()", ""),
+        truncated = text_or_default(Node, "/status/truncated/text()|/direct_message/truncated/text()", ""),
+        in_reply_to_status_id = text_or_default(Node, "/status/in_reply_to_status_id/text()|/direct_message/in_reply_to_status_id/text()", ""),
+        in_reply_to_user_id = text_or_default(Node, "/status/in_reply_to_user_id/text()|/direct_message/in_reply_to_user_id/text()", ""),
+        favorited = text_or_default(Node, "/status/favorited/text()|/direct_message/favorited/text()", "")
     },
-    case xmerl_xpath:string("/status/user", Node) of
+    case xmerl_xpath:string("/status/user|/direct_message/user", Node) of
         [] -> Status;
         [UserNode] -> Status#status{ user = parse_user(UserNode) }
     end;
