@@ -1,7 +1,14 @@
 erlang_twitter contains an Erlang twitter client. This code is still under active development.
 
-Using this module is pretty simple:
+* twitter_client -- A twitter client and client manager. This module contains all of the required functions to send and parse twitter API requests. The functions provided can be called on their own or managed by the twitter_client gen_server.
+
 1> inets:start().
 2> twitter_client:start("myname", "pass").
-3> twitter_client:call(myname, status_update, [{"status", "Testing the erlang_twitter twitter_client.erl library."}]).
-4> twitter_client:call(myname, user_timeline).
+3> twitter_client:account_verify_credentials("myname", "pass", []).
+OR
+4> twitter_client:call(myname, account_verify_credentials).
+5> twitter_client:call(myname, user_timeline).
+6> twitter_client:call(myname, status_update, [{"status", "Testing the erlang_twitter twitter_client.erl library."}]).
+7> twitter_client:call(myname, user_timeline).
+
+* twitterbot -- A module that provides the structure to create a twitter bot.
