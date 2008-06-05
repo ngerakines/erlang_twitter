@@ -14,7 +14,8 @@
 -include("twitter_client.hrl").
 -include_lib("xmerl/include/xmerl.hrl").
 
--record(state, {login, password, usertable, dmloop, flwloop, lastcheck, checkinterval}).
+-record(state, {login, password, usertable, datatable, dmloop, flwloop, lastcheck, checkinterval}).
+-record(bucket, {name, date, total, count}).
 
 clean_name(Name) -> list_to_atom(lists:concat(["twitterbot_", Name])).
 
@@ -32,9 +33,7 @@ followers_loop(Name) ->
     io:format("Checking for new followers.~n", []),
     
     Followers = twitter_client:call(list_to_atom("treasury"), collect_user_followers),
-    io:format("Followers: ~p~n", [Followers]),
     [begin
-        io:format("Processing follower ~p~n", [Follower]),
         gen_server:call(twitterbot:clean_name(Name), {follower, Follower}, infinity)
     end || Follower <- Followers],
 
@@ -64,16 +63,53 @@ process_direct_messages([Message | Messages], Name) ->
     io:format("Recieved message (~p) '~p'~n", [Message#status.id, Message#status.text]),
     process_direct_messages(Messages, Name).
 
+%% twitterbot:parse_direct_message("i coffee $4.51").
+%% twitterbot:parse_direct_message("i bucket:coffee 4.51").
+%% twitterbot:parse_direct_message("i price:4.51").
+%% twitterbot:parse_direct_message("i price:$4.51").
+parse_direct_message([]) -> ok;
+parse_direct_message("i " ++ Message) ->
+    {Date, _} = calendar:universal_time(),
+    Bucket = lists:foldl(
+        fun ("$" ++ X, OldRec) -> OldRec#bucket{ total = clean_price(X) };
+            ([X | Y], OldRec) when X > 47, X < 58 ->
+                 OldRec#bucket{ total = clean_price([X | Y]) };
+            ("price:$" ++ X, OldRec) -> OldRec#bucket{ total = clean_price(X) };
+            ("price:" ++ X, OldRec) -> OldRec#bucket{ total = clean_price(X) };
+            ("bucket:" ++ X, OldRec) -> OldRec#bucket{ name = X };
+            ("date:" ++ X, OldRec) -> OldRec#bucket{ date = clean_date(X) };
+            (Bucket, OldRec) -> OldRec#bucket{ name = Bucket }
+        end,
+        #bucket{ date = Date, count = 0, name = "default"},
+        string:tokens(Message, " ")
+    ),
+    Bucket.
+
+clean_date(Str) ->
+    case string:tokens(Str, "/") of 
+        [A, B, C] -> list_to_tuple([ list_to_integer(X) || X <- [A, B, C]]);
+        _ -> {Date, _} = calendar:universal_time(), Date
+    end.
+
+clean_price(Str) when is_integer(Str) -> Str;
+clean_price(Str) when is_list(Str) ->
+    case string:chr(Str, $.) of
+        0 -> list_to_integer(Str) + 0.0;
+        _ -> list_to_float(Str)
+    end.
+
 %% -
 %% gen_server functions
 
 %% todo: Add the process to a pg2 pool
 init([Login, Password]) ->
     UserTable = ets:new(list_to_atom(Login ++ "_users"), [protected, set, named_table]),
+    DataTable = dets:open_file(list_to_atom(Login ++ "_data"), [{type, bucket}]),
     State = #state{
         login = Login,
         password = Password,
         usertable = UserTable,
+        datatable = DataTable,
         checkinterval = 60000 * 1,
         lastcheck = 5000
     },
@@ -153,6 +189,3 @@ handle_info(_Info, State) -> {noreply, State}.
 terminate(_Reason, _State) -> ok.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
-
-%% -
-%% Misc utility functions
