@@ -11,7 +11,7 @@ OR
 6> twitter_client:call(myname, status_update, [{"status", "Testing the erlang_twitter twitter_client.erl library."}]).
 7> twitter_client:call(myname, user_timeline).
 
-* twitterbot -- A module that provides the structure to create a twitter bot.
+* twitterbot -- A module that provides the structure to create a twitter bot. 
 
 1> inets:start().
 2> twitterbot:start("mybot", "mybotpassword").

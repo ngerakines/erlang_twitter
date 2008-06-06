@@ -123,7 +123,7 @@ init([Login, Password]) ->
         password = Password,
         usertable = UserTable,
         datatable = DataTable,
-        checkinterval = 60000 * 1,
+        checkinterval = 60000 * 5,
         lastcheck = 5000
     },
     {ok, State}.
