@@ -261,7 +261,7 @@ parse_status(Node) when is_tuple(Node) ->
         in_reply_to_user_id = text_or_default(Node, "/status/in_reply_to_user_id/text()|/direct_message/in_reply_to_user_id/text()", ""),
         favorited = text_or_default(Node, "/status/favorited/text()|/direct_message/favorited/text()", "")
     },
-    case xmerl_xpath:string("/status/user|/direct_message/user", Node) of
+    case xmerl_xpath:string("/status/user|/direct_message/sender", Node) of
         [] -> Status;
         [UserNode] -> Status#status{ user = parse_user(UserNode) }
     end;
@@ -286,15 +286,15 @@ parse_users(Body) ->
 
 parse_user(Node) when is_tuple(Node) ->
     UserRec = #user{
-        id = text_or_default(Node, "/user/id/text()", ""),
-        name = text_or_default(Node, "/user/name/text()", ""),
-        screen_name = text_or_default(Node, "/user/screen_name/text()", ""),
-        location = text_or_default(Node, "/user/location/text()", ""),
-        description = text_or_default(Node, "/user/description/text()", ""),
-        profile_image_url = text_or_default(Node, "/user/profile_image_url/text()", ""),
-        url = text_or_default(Node, "/user/url/text()", ""),
-        protected = text_or_default(Node, "/user/protected/text()", ""),
-        followers_count = text_or_default(Node, "/user/followers_count/text()", ""),
+        id = text_or_default(Node, "/user/id/text()|/sender/id/text()", ""),
+        name = text_or_default(Node, "/user/name/text()|/sender/name/text()", ""),
+        screen_name = text_or_default(Node, "/user/screen_name/text()|/sender/screen_name/text()", ""),
+        location = text_or_default(Node, "/user/location/text()|/sender/location/text()", ""),
+        description = text_or_default(Node, "/user/description/text()|/sender/description/text()", ""),
+        profile_image_url = text_or_default(Node, "/user/profile_image_url/text()|/sender/profile_image_url/text()", ""),
+        url = text_or_default(Node, "/user/url/text()|/sender/url/text()", ""),
+        protected = text_or_default(Node, "/user/protected/text()|/sender/protected/text()", ""),
+        followers_count = text_or_default(Node, "/user/followers_count/text()|/sender/followers_count/text()", ""),
         profile_background_color = text_or_default(Node, "/user/profile_background_color/text()", ""),
         profile_text_color = text_or_default(Node, "/user/profile_text_color/text()", ""),
         profile_link_color = text_or_default(Node, "/user/profile_link_color/text()", ""),

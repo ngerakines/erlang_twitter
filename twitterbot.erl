@@ -13,9 +13,10 @@
 
 -include("twitter_client.hrl").
 -include_lib("xmerl/include/xmerl.hrl").
+-include_lib("stdlib/include/qlc.hrl").
 
 -record(state, {login, password, usertable, datatable, dmloop, flwloop, lastcheck, checkinterval}).
--record(bucket, {name, date, total, count}).
+-record(bucket, {id, name, date, total, count}).
 
 clean_name(Name) -> list_to_atom(lists:concat(["twitterbot_", Name])).
 
@@ -60,17 +61,14 @@ direct_message_loop(Name) ->
 
 process_direct_messages([], _) -> ok;
 process_direct_messages([Message | Messages], Name) ->
-    io:format("Recieved message (~p) '~p'~n", [Message#status.id, Message#status.text]),
-    process_direct_messages(Messages, Name).
+    MessageUser = Message#status.user,
+    twitterbot:parse_direct_message(Name, MessageUser#user.screen_name, Message#status.text),
+    twitterbot:process_direct_messages(Messages, Name).
 
-%% twitterbot:parse_direct_message("i coffee $4.51").
-%% twitterbot:parse_direct_message("i bucket:coffee 4.51").
-%% twitterbot:parse_direct_message("i price:4.51").
-%% twitterbot:parse_direct_message("i price:$4.51").
-parse_direct_message([]) -> ok;
-parse_direct_message("i " ++ Message) ->
+parse_direct_message(BotName, Name, "i " ++ Message) ->
+    TableName = gen_server:call(twitterbot:clean_name(BotName), {datatable}, infinity),
     {Date, _} = calendar:universal_time(),
-    Bucket = lists:foldl(
+    NewBucket = lists:foldl(
         fun ("$" ++ X, OldRec) -> OldRec#bucket{ total = clean_price(X) };
             ([X | Y], OldRec) when X > 47, X < 58 ->
                  OldRec#bucket{ total = clean_price([X | Y]) };
@@ -83,7 +81,22 @@ parse_direct_message("i " ++ Message) ->
         #bucket{ date = Date, count = 0, name = "default"},
         string:tokens(Message, " ")
     ),
-    Bucket.
+    BucketId = bucket_key(Name, NewBucket#bucket.date),
+    case dets:lookup(TableName, BucketId) of 
+        [_] ->
+            dets:update_counter(TableName, BucketId, {4, NewBucket#bucket.total}),
+            dets:update_counter(TableName, BucketId, {5, 1}),
+            ok;
+        _ ->
+            dets:insert(TableName, [{BucketId, NewBucket#bucket.name, NewBucket#bucket.date, NewBucket#bucket.total, 1}]),
+            ok
+    end;
+parse_direct_message(_, _, Message) ->
+    io:format("Direct message (no match): ~p~n", [Message]),
+    ok.
+
+bucket_key(Name, {YY, MM, DD}) ->
+    lists:flatten(io_lib:format("~s-~w-~w-~w",[Name, YY, MM, DD])).
 
 clean_date(Str) ->
     case string:tokens(Str, "/") of 
@@ -104,7 +117,7 @@ clean_price(Str) when is_list(Str) ->
 %% todo: Add the process to a pg2 pool
 init([Login, Password]) ->
     UserTable = ets:new(list_to_atom(Login ++ "_users"), [protected, set, named_table]),
-    DataTable = dets:open_file(list_to_atom(Login ++ "_data"), [{type, bucket}]),
+    {ok, DataTable} = dets:open_file(list_to_atom(Login ++ "_data"), []),
     State = #state{
         login = Login,
         password = Password,
@@ -120,6 +133,8 @@ handle_call({info}, _From, State) -> {reply, State, State};
 handle_call({checkinterval}, _From, State) -> {reply, State#state.checkinterval, State};
 
 handle_call({checkinterval, X}, _From, State) -> {reply, ok, State#state{ checkinterval = X }};
+
+handle_call({datatable}, _From, State) -> {reply, State#state.datatable, State};
 
 handle_call({lastcheck}, _From, State) -> {reply, State#state.lastcheck, State};
 
