@@ -252,14 +252,14 @@ parse_statuses(Body) ->
 %% todo: Find a better way to do this.
 parse_status(Node) when is_tuple(Node) ->
     Status = #status{
-        created_at = text_or_default(Node, "/status/created_at/text()|/direct_message/created_at/text()", ""),
-        id = text_or_default(Node, "/status/id/text()|/direct_message/id/text()", ""),
-        text = text_or_default(Node, "/status/text/text()|/direct_message/text/text()", ""),
-        source = text_or_default(Node, "/status/source/text()|/direct_message/source/text()", ""),
-        truncated = text_or_default(Node, "/status/truncated/text()|/direct_message/truncated/text()", ""),
-        in_reply_to_status_id = text_or_default(Node, "/status/in_reply_to_status_id/text()|/direct_message/in_reply_to_status_id/text()", ""),
-        in_reply_to_user_id = text_or_default(Node, "/status/in_reply_to_user_id/text()|/direct_message/in_reply_to_user_id/text()", ""),
-        favorited = text_or_default(Node, "/status/favorited/text()|/direct_message/favorited/text()", "")
+        created_at = text_or_default(Node, ["/status/created_at/text()", "/direct_message/created_at/text()"], ""),
+        id = text_or_default(Node, ["/status/id/text()", "/direct_message/id/text()"], ""),
+        text = text_or_default(Node, ["/status/text/text()", "/direct_message/text/text()"], ""),
+        source = text_or_default(Node, ["/status/source/text()", "/direct_message/source/text()"], ""),
+        truncated = text_or_default(Node, ["/status/truncated/text()", "/direct_message/truncated/text()"], ""),
+        in_reply_to_status_id = text_or_default(Node, ["/status/in_reply_to_status_id/text()", "/direct_message/in_reply_to_status_id/text()"], ""),
+        in_reply_to_user_id = text_or_default(Node, ["/status/in_reply_to_user_id/text()", "/direct_message/in_reply_to_user_id/text()"], ""),
+        favorited = text_or_default(Node, ["/status/favorited/text()", "/direct_message/favorited/text()"], "")
     },
     case xmerl_xpath:string("/status/user|/direct_message/sender", Node) of
         [] -> Status;
@@ -286,28 +286,28 @@ parse_users(Body) ->
 
 parse_user(Node) when is_tuple(Node) ->
     UserRec = #user{
-        id = text_or_default(Node, "/user/id/text()|/sender/id/text()", ""),
-        name = text_or_default(Node, "/user/name/text()|/sender/name/text()", ""),
-        screen_name = text_or_default(Node, "/user/screen_name/text()|/sender/screen_name/text()", ""),
-        location = text_or_default(Node, "/user/location/text()|/sender/location/text()", ""),
-        description = text_or_default(Node, "/user/description/text()|/sender/description/text()", ""),
-        profile_image_url = text_or_default(Node, "/user/profile_image_url/text()|/sender/profile_image_url/text()", ""),
-        url = text_or_default(Node, "/user/url/text()|/sender/url/text()", ""),
-        protected = text_or_default(Node, "/user/protected/text()|/sender/protected/text()", ""),
-        followers_count = text_or_default(Node, "/user/followers_count/text()|/sender/followers_count/text()", ""),
-        profile_background_color = text_or_default(Node, "/user/profile_background_color/text()", ""),
-        profile_text_color = text_or_default(Node, "/user/profile_text_color/text()", ""),
-        profile_link_color = text_or_default(Node, "/user/profile_link_color/text()", ""),
-        profile_sidebar_fill_color = text_or_default(Node, "/user/profile_sidebar_fill_color/text()", ""),
-        profile_sidebar_border_color = text_or_default(Node, "/user/profile_sidebar_border_color/text()", ""),
-        friends_count = text_or_default(Node, "/user/friends_count/text()", ""),
-        created_at = text_or_default(Node, "/user/created_at/text()", ""),
-        favourites_count = text_or_default(Node, "/user/favourites_count/text()", ""),
-        utc_offset = text_or_default(Node, "/user/utc_offset/text()", ""),
-        time_zone = text_or_default(Node, "/user/time_zone/text()", ""),
-        following = text_or_default(Node, "/user/following/text()", ""),
-        notifications = text_or_default(Node, "/user/notifications/text()", ""),
-        statuses_count = text_or_default(Node, "/user/statuses_count/text()", "")
+        id = text_or_default(Node, ["/user/id/text()", "/sender/id/text()"], ""),
+        name = text_or_default(Node, ["/user/name/text()", "/sender/name/text()"], ""),
+        screen_name = text_or_default(Node, ["/user/screen_name/text()", "/sender/screen_name/text()"], ""),
+        location = text_or_default(Node, ["/user/location/text()", "/sender/location/text()"], ""),
+        description = text_or_default(Node, ["/user/description/text()", "/sender/description/text()"], ""),
+        profile_image_url = text_or_default(Node, ["/user/profile_image_url/text()", "/sender/profile_image_url/text()"], ""),
+        url = text_or_default(Node, ["/user/url/text()", "/sender/url/text()"], ""),
+        protected = text_or_default(Node, ["/user/protected/text()", "/sender/protected/text()"], ""),
+        followers_count = text_or_default(Node, ["/user/followers_count/text()", "/sender/followers_count/text()"], ""),
+        profile_background_color = text_or_default(Node, ["/user/profile_background_color/text()"], ""),
+        profile_text_color = text_or_default(Node, ["/user/profile_text_color/text()"], ""),
+        profile_link_color = text_or_default(Node, ["/user/profile_link_color/text()"], ""),
+        profile_sidebar_fill_color = text_or_default(Node, ["/user/profile_sidebar_fill_color/text()"], ""),
+        profile_sidebar_border_color = text_or_default(Node, ["/user/profile_sidebar_border_color/text()"], ""),
+        friends_count = text_or_default(Node, ["/user/friends_count/text()"], ""),
+        created_at = text_or_default(Node, ["/user/created_at/text()"], ""),
+        favourites_count = text_or_default(Node, ["/user/favourites_count/text()"], ""),
+        utc_offset = text_or_default(Node, ["/user/utc_offset/text()"], ""),
+        time_zone = text_or_default(Node, ["/user/time_zone/text()"], ""),
+        following = text_or_default(Node, ["/user/following/text()"], ""),
+        notifications = text_or_default(Node, ["/user/notifications/text()"], ""),
+        statuses_count = text_or_default(Node, ["/user/statuses_count/text()"], "")
     },
     case xmerl_xpath:string("/user/status", Node) of
         [] -> UserRec;
@@ -323,8 +323,9 @@ parse_user(Body) when is_list(Body) ->
             [parse_user(Node) || Node <- xmerl_xpath:string("/user", Xml)]
     end.
 
-text_or_default(Xml, Xpath, Default) ->
+text_or_default(_, [], Default) -> Default;
+text_or_default(Xml, [Xpath | Tail], Default) ->
     case xmerl_xpath:string(Xpath, Xml) of
         [ #xmlText{value = Val} ] -> Val;
-        _ -> Default
+        _ -> text_or_default(Xml, Tail, Default)
     end.

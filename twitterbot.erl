@@ -116,7 +116,7 @@ clean_price(Str) when is_list(Str) ->
 
 %% todo: Add the process to a pg2 pool
 init([Login, Password]) ->
-    UserTable = ets:new(list_to_atom(Login ++ "_users"), [protected, set, named_table]),
+    {ok, UserTable} = dets:open_file(list_to_atom(Login ++ "_users"), []),
     {ok, DataTable} = dets:open_file(list_to_atom(Login ++ "_data"), []),
     State = #state{
         login = Login,
@@ -141,11 +141,12 @@ handle_call({lastcheck}, _From, State) -> {reply, State#state.lastcheck, State};
 handle_call({lastcheck, X}, _From, State) -> {reply, ok, State#state{ lastcheck = X }};
 
 handle_call({follower, User}, _From, State) ->
-    ets:insert(State#state.usertable, {User#user.id, User#user.name, User#user.screen_name}),
+    io:format("Follow: ~p~n", [User]),
+    dets:insert(State#state.usertable, [{User#user.id, User#user.name, User#user.screen_name}]),
     {reply, ok, State};
 
 handle_call({followers}, _From, State) ->
-    Response = ets:foldl(fun(R, Acc) -> [R | Acc] end, [], State#state.usertable),
+    Response = dets:foldl(fun(R, Acc) -> [R | Acc] end, [], State#state.usertable),
     {reply, Response, State};
 
 %% dmloop, flwloop
