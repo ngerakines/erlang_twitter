@@ -20,12 +20,29 @@
 %% WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 %% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 %% OTHER DEALINGS IN THE SOFTWARE.
-
+%% @author Nick Gerakines <nick@gerakines.net>
+%% @copyright 2008 Nick Gerakines
+%% @version 0.1a
+%% @doc A Twitter bot template/example.
+%% 
+%% This module is still in development and should be considered to be in
+%% <strong>ALPHA</strong> stage. For your own sake do not put this into
+%% production.
+%% 
+%% <h4>Quick start</h4>
+%% <pre><code>
+%% 1&gt; inets:start().
+%% 2&gt; twitterbot:start("mybot", "mybotpassword").
+%% 3&gt; gen_server:call(twitterbot:clean_name("mybot"), {info}).
+%% 4&gt; gen_server:call(twitterbot:clean_name("mybot"), {start_dmloop}).
+%% 5&gt; gen_server:call(twitterbot:clean_name("mybot"), {start_flwloop}).
+%% 6&gt; gen_server:call(twitterbot:clean_name("mybot"), {followers}).
+%% </code></pre>
 -module(twitterbot).
 -behaviour(gen_server).
 
 -author("Nick Gerakines <nick@gerakines.net>").
--version("0.1").
+-version("0.1a").
 
 -compile(export_all).
 
@@ -38,25 +55,27 @@
 -include_lib("xmerl/include/xmerl.hrl").
 -include_lib("stdlib/include/qlc.hrl").
 
+-define(UNIQUEPREFIX,"twitterbot_").
+
 -record(state, {login, password, usertable, datatable, dmloop, flwloop, lastcheck, checkinterval}).
 -record(bucket, {id, name, date, total, count}).
 
-clean_name(Name) -> list_to_atom(lists:concat(["twitterbot_", Name])).
+clean_name(Name) -> list_to_atom(lists:concat([?UNIQUEPREFIX, Name])).
 
 start(Login, Password) ->
     twitter_client:start(Login, Password),
-    gen_server:start_link({local, clean_name(Login)}, ?MODULE, [Login, Password], []).
+    gen_server:start_link({local, twitterbot:clean_name(Login)}, ?MODULE, [Login, Password], []).
 
 call(Client, Method) ->
     twitter_client:call(Client, Method, []).
 
 call(Client, Method, Args) ->
-    gen_server:call(clean_name(Client), {Method, Args}).
+    gen_server:call(twitterbot:clean_name(Client), {Method, Args}).
 
 followers_loop(Name) ->
     io:format("Checking for new followers.~n", []),
     
-    Followers = twitter_client:call(list_to_atom("treasury"), collect_user_followers),
+    Followers = twitter_client:call("treasury", collect_user_followers),
     [begin
         gen_server:call(twitterbot:clean_name(Name), {follower, Follower}, infinity)
     end || Follower <- Followers],
@@ -69,7 +88,7 @@ direct_message_loop(Name) ->
     LowId = gen_server:call(twitterbot:clean_name(Name), {lastcheck}, infinity),
     io:format("Checking for new messages: lowid ~p~n", [LowId]),
     
-    NewMessages = twitter_client:call(list_to_atom(Name), collect_direct_messages, LowId),
+    NewMessages = twitter_client:call(Name, collect_direct_messages, LowId),
     case length(NewMessages) of
         0 -> ok;
         _ ->

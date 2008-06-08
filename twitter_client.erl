@@ -20,42 +20,118 @@
 %% WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 %% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 %% OTHER DEALINGS IN THE SOFTWARE.
-
+%% 
+%% @author Nick Gerakines <nick@gerakines.net>
+%% @copyright 2008 Nick Gerakines
+%% @version 0.2
+%% @doc Provides access to the Twitter web service. Mostly through the
+%% clever use of REST-like requests and XML parsing.
+%% 
+%% This module attempts to provide complete access to the Twitter API. In
+%% addition, it provides a simple gen_server process template to allow calls
+%% to be made on behalf of a named user without having to send a username
+%% and password each time.
+%% 
+%% When the gen_server feature is used to make Twitter API calls for a user,
+%% a gen_server process is spawned locally and its name is prefixed to
+%% prevent named process collision.
+%% 
+%% <strong>Make sure you start inets (<code>inets:start().</code>) before you do
+%% anything.</strong>
+%% 
+%% <h4>Quick start</h4>
+%% <pre><code>
+%% 1&gt; inets:start().
+%% 2&gt; twitter_client:start("myname", "pass").
+%% 3&gt; twitter_client:account_verify_credentials("myname", "pass", []).
+%%   OR
+%% 3&gt; twitter_client:call("myname", account_verify_credentials).
+%% 4&gt; twitter_client:call("myname", user_timeline).
+%% 5&gt; twitter_client:call("myname", status_update, [{"status", "Testing the erlang_twitter twitter_client.erl library."}]).
+%% 6&gt; twitter_client:call("myname", user_timeline).
+%% </code></pre>
 -module(twitter_client).
 -behaviour(gen_server).
 
 -author("Nick Gerakines <nick@gerakines.net>").
--version("0.1").
-
--compile(export_all).
+-version("0.2").
 
 -export([
     init/1, terminate/2, code_change/3,
     handle_call/3, handle_cast/2, handle_info/2
 ]).
 
+-export([account_archive/3, account_end_session/3,
+    account_update_delivery_device/3, account_update_location/3,
+    account_verify_credentials/3, block_create/3, block_destroy/3,
+    build_url/2, call/2, call/3, clean_name/1, collect_account_archive/5,
+    collect_direct_messages/5, collect_favorites/4, collect_user_followers/4,
+    direct_destroy/3, direct_messages/3, direct_new/3, direct_sent/3,
+    favorites_create/3, favorites_destroy/3, favorites_favorites/3,
+    friendship_create/3, friendship_destroy/3, friendship_exists/3,
+    headers/2, help_test/3, notification_follow/3, notification_leave/3,
+    parse_status/1, parse_statuses/1, parse_user/1, parse_users/1,
+    request_url/5, start/2, status_destroy/3, status_friends_timeline/3,
+    status_public_timeline/3, status_replies/3, status_show/3,
+    status_update/3, status_user_timeline/3, text_or_default/3,
+    user_featured/3, user_followers/3, user_friends/3, user_show/3
+]).
+
 -include("twitter_client.hrl").
 -include_lib("xmerl/include/xmerl.hrl").
 
+-define(UNIQUEPREFIX,"twitterclient_").
+
 -record(state, {login, password}).
 
-%% todo: Do some checking to see if the process already exists.
+%% @spec start(Login, Password) -> Result
+%% where 
+%%       Login = string()
+%%       Password = string()
+%%       Result = {ok, pid()} | Error
+%% @doc Start a twitter_client gen_server process for a Twitter user.
 start(Login, Password) ->
-    gen_server:start_link({local, list_to_atom(Login)}, ?MODULE, [Login, Password], []).
+    gen_server:start_link({local, clean_name(Login)}, ?MODULE, [Login, Password], []).
 
+%% @equiv call(Client, Method, [])
 call(Client, Method) ->
     twitter_client:call(Client, Method, []).
 
-call(Client, Method, Args) when is_atom(Client) ->
-    gen_server:call(Client, {Method, Args}, infinity).
+%% @spec call(Client, Method, Args) -> Result
+%% where 
+%%       Client = string() | atom()
+%%       Method = atom()
+%%       Args = [{any(), any()}]
+%%       Result = any()
+%% @doc Make a request to a twitter_client gen_server process for a user.
+%% This function attempts to call the named gen_server process for the given
+%% client (usern). The method called maps directly to the available methods
+%% provided by this module. Please refer to the specific methods for their
+%% required and optional arguments. In most (all) cases the arguments
+%% defined in the Twitter API documentation can be passed in directly as
+%% string/string tuples.
+%% 
+%% Calling this method does not verify that the given gen_server process
+%% exists or is running.
+call(Client, Method, Args) ->
+    gen_server:call(clean_name(Client), {Method, Args}, infinity).
 
-%% -
-%% gen_server functions
+%% @private
+clean_name(Name) when is_list(Name) ->
+    list_to_atom(lists:concat([?UNIQUEPREFIX, Name]));
 
-%% todo: Add the process to a pg2 pool
+%% @private
+clean_name(Name) when is_atom(Name) ->
+    list_to_atom(lists:concat([?UNIQUEPREFIX, atom_to_list(Name)])).
+
+%% % -
+%% % gen_server functions
+
+%% @private
 init([Login, Password]) ->
     {ok, #state{login = Login, password = Password }}.
 
+%% @private
 handle_call({collect_direct_messages, LowID}, _From, State) ->
     Messages = twitter_client:collect_direct_messages(State#state.login, State#state.password, 0, LowID, []),
     {reply, Messages, State};
@@ -75,18 +151,23 @@ handle_call(stop, _From, State) -> {stop, normalStop, State};
 
 handle_call(_, _From, State) -> {noreply, ok, State}.
 
+%% @private
 handle_cast(_Msg, State) -> {noreply, State}.
 
 handle_info(_Info, State) -> {noreply, State}.
 
+%% @private
 terminate(_Reason, _State) -> ok.
 
+%% @private
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
-%% -
-%% Status API methods
+%% % -
+%% % Status API methods
 
-status_public_timeline(_, _, Args) ->
+%% @doc Return a list of the most recent tweets as per the public timeline.
+%% This API call ignores the login and password strings given.
+status_public_timeline(_Login, _Password, Args) ->
     Url = build_url("http://twitter.com/statuses/public_timeline.xml", Args),
     Body = request_url(get, Url, nil, nil, nil),
     parse_statuses(Body).
@@ -143,8 +224,8 @@ status_destroy(Login, Password, Args) ->
         _ -> {error}
     end.
 
-%% -
-%% Account API methods
+%% % -
+%% % Account API methods
 
 account_verify_credentials(Login, Password, _) ->
     Url = build_url("http://twitter.com/account/verify_credentials.xml", []),
@@ -157,8 +238,32 @@ account_end_session(Login, Password, _) ->
     Url = build_url("http://twitter.com/account/end_session", []),
     request_url(get, Url, Login, Password, nil).
 
-%% -
-%% Direct Message API methods
+account_archive(Login, Password, Args) ->
+    Url = build_url("http://twitter.com/account/archive.xml", Args),
+    Body = request_url(get, Url, Login, Password, nil),
+    parse_statuses(Body).
+
+collect_account_archive(Login, Password, Page, Args, Acc) ->
+    NArgs = [{"page", integer_to_list(Page)} ] ++ Args,
+    Messages = twitter_client:account_archive(Login, Password, NArgs),
+    case length(Messages) of
+        80 -> collect_account_archive(Login, Password, Page + 1, Args, [Messages | Acc]);
+        0 -> lists:flatten(Acc);
+        _ -> lists:flatten([Messages | Acc])
+    end.
+
+account_update_location(Login, Password, Args) ->
+    Url = build_url("http://twitter.com/account/update_location.xml", Args),
+    Body = request_url(get, Url, Login, Password, nil),
+    parse_user(Body).
+
+account_update_delivery_device(Login, Password, Args) ->
+    Url = build_url("http://twitter.com/account/update_delivery_device.xml", Args),
+    Body = request_url(get, Url, Login, Password, nil),
+    parse_user(Body).
+
+%% % -
+%% % Direct Message API methods
 
 direct_messages(Login, Password, Args) ->
     Url = build_url("http://twitter.com/direct_messages.xml", Args),
@@ -194,8 +299,78 @@ direct_destroy(Login, Password, Args) ->
         _ -> {error}
     end.
 
-%% -
-%% User API methods
+%% % -
+%% % Favorites API methods
+
+favorites_favorites(Login, Password, Args) ->
+    UrlBase = "http://twitter.com/favorites",
+    Url = case lists:keytake("id", 1, Args) of 
+        false ->
+            build_url(UrlBase ++ ".xml", Args);
+        {value, {"id", Id}, RetArgs} ->
+            build_url(UrlBase ++ "/" ++ Id ++ ".xml", RetArgs)
+    end,
+    Body = request_url(get, Url, Login, Password, nil),
+    parse_statuses(Body).
+
+collect_favorites(Login, Password, Page, Acc) ->
+    Args = [{"page", integer_to_list(Page)}],
+    Messages = twitter_client:favorites_favorites(Login, Password, Args),
+    case length(Messages) of
+        20 -> collect_favorites(Login, Password, Page + 1, [Messages | Acc]);
+        0 -> lists:flatten(Acc);
+        _ -> lists:flatten([Messages | Acc])
+    end.
+
+favorites_create(Login, Password, Args) ->
+    UrlBase = "http://twitter.com/favorites/create/",
+    case Args of
+        [{"id", Id}] ->
+            Url = build_url(UrlBase ++ Id ++ ".xml", []),
+            Body = request_url(get, Url, Login, Password, nil),
+            parse_status(Body);
+        _ -> {error}
+    end.
+
+favorites_destroy(Login, Password, Args) ->
+    UrlBase = "http://twitter.com/favorites/destroy/",
+    case Args of
+        [{"id", Id}] ->
+            Url = build_url(UrlBase ++ Id ++ ".xml", []),
+            Body = request_url(get, Url, Login, Password, nil),
+            parse_status(Body);
+        _ -> {error}
+    end.
+
+%% % -
+%% % Friendship API methods
+
+friendship_exists(Login, Password, Args) ->
+    Url = build_url("http://twitter.com/friendships/exists.xml", Args),
+    Body = request_url(get, Url, Login, Password, nil),
+    Body == "<friends>true</friends>".
+
+friendship_create(Login, Password, Args) ->
+    UrlBase = "http://twitter.com/friendships/create/",
+    case Args of
+        [{"id", Id}] ->
+            Url = build_url(UrlBase ++ Id ++ ".xml", []),
+            Body = request_url(get, Url, Login, Password, nil),
+            parse_user(Body);
+        _ -> {error}
+    end.
+
+friendship_destroy(Login, Password, Args) ->
+    UrlBase = "http://twitter.com/friendships/destroy/",
+    case Args of
+        [{"id", Id}] ->
+            Url = build_url(UrlBase ++ Id ++ ".xml", []),
+            Body = request_url(get, Url, Login, Password, nil),
+            parse_user(Body);
+        _ -> {error}
+    end.
+%% % -
+%% % User API methods
 
 user_friends(Login, Password, Args) ->
     UrlBase = "http://twitter.com/statuses/friends",
@@ -235,11 +410,66 @@ user_show(Login, Password, Args) ->
             build_url(UrlBase ++ "/" ++ Id ++ ".xml", RetArgs)
     end,
     Body = request_url(get, Url, Login, Password, nil),
-    parse_statuses(Body).
+    parse_user(Body).
 
-%% -
-%% Internal request functions
+%% % -
+%% % Notification API methods
 
+notification_follow(Login, Password, Args) ->
+    UrlBase = "http://twitter.com/notifications/follow/",
+    case Args of
+        [{"id", Id}] ->
+            Url = build_url(UrlBase ++ Id ++ ".xml", []),
+            Body = request_url(get, Url, Login, Password, nil),
+            case parse_user(Body) of [#user{ screen_name = Id }] -> true; _ -> false end;
+        _ -> {error}
+    end.
+
+notification_leave(Login, Password, Args) ->
+    UrlBase = "http://twitter.com/notifications/leave/",
+    case Args of
+        [{"id", Id}] ->
+            Url = build_url(UrlBase ++ Id ++ ".xml", []),
+            Body = request_url(get, Url, Login, Password, nil),
+            case parse_user(Body) of [#user{ screen_name = Id }] -> true; _ -> false end;
+        _ -> {error}
+    end.
+
+%% % -
+%% % Block API methods
+
+block_create(Login, Password, Args) ->
+    UrlBase = "http://twitter.com/blocks/create/",
+    case Args of
+        [{"id", Id}] ->
+            Url = build_url(UrlBase ++ Id ++ ".xml", []),
+            Body = request_url(get, Url, Login, Password, nil),
+            case parse_user(Body) of [#user{ screen_name = Id }] -> true; _ -> false end;
+        _ -> {error}
+    end.
+
+block_destroy(Login, Password, Args) ->
+    UrlBase = "http://twitter.com/blocks/destroy/",
+    case Args of
+        [{"id", Id}] ->
+            Url = build_url(UrlBase ++ Id ++ ".xml", []),
+            Body = request_url(get, Url, Login, Password, nil),
+            case parse_user(Body) of [#user{ screen_name = Id }] -> true; _ -> false end;
+        _ -> {error}
+    end.
+
+%% % -
+%% % Help API methods
+
+help_test(_, _, _) ->
+    Url = build_url("http://twitter.com/help/test.xml", []),
+    Body = request_url(get, Url, nil, nil, nil),
+    Body == "<ok>true</ok>".
+
+%% % -
+%% %  Internal request functions
+
+%% @private
 build_url(Url, []) -> Url;
 build_url(Url, Args) ->
     ArgStr = lists:concat(
@@ -253,6 +483,7 @@ build_url(Url, Args) ->
     ),
     Url ++ "?" ++ ArgStr.
 
+%% @private
 request_url(get, Url, Login, Pass, _) ->
     HTTPResult = http:request(get, {Url, headers(Login, Pass)}, [], []),
     case HTTPResult of
@@ -274,25 +505,27 @@ request_url(post, Url, Login, Pass, Args) ->
         _ -> {error}
     end.
 
+%% @private
 headers(nil, nil) -> [{"User-Agent", "ErlangTwitterClient/0.1"}];
 headers(User, Pass) -> 
     UP = base64:encode(User ++ ":" ++ Pass),
     Basic = lists:flatten(io_lib:fwrite("Basic ~s", [UP])),
     [{"User-Agent", "ErlangTwitterClient/0.1"}, {"Authorization", Basic}].
 
-%% -
-%% Response parsing functions
+%% % -
+%% % Response parsing functions
 
+%% @private
 parse_statuses(Body) ->
     case (catch xmerl_scan:string(Body, [{quiet, true}])) of
         {'EXIT', _} -> {error};
         {error, _} -> {error};
         Result ->
             {Xml, _Rest} = Result,
-            [parse_status(Node) || Node <- xmerl_xpath:string("/statuses/status|/direct-messages/direct_message", Xml)]
+            [parse_status(Node) || Node <- lists:flatten([xmerl_xpath:string("/statuses/status", Xml), xmerl_xpath:string("/direct-messages/direct_message", Xml)])]
     end.
 
-%% todo: Find a better way to do this.
+%% @private
 parse_status(Node) when is_tuple(Node) ->
     Status = #status{
         created_at = text_or_default(Node, ["/status/created_at/text()", "/direct_message/created_at/text()"], ""),
@@ -309,6 +542,7 @@ parse_status(Node) when is_tuple(Node) ->
         [UserNode] -> Status#status{ user = parse_user(UserNode) }
     end;
 
+%% @private
 parse_status(Body) when is_list(Body) ->
     case (catch xmerl_scan:string(Body, [{quiet, true}])) of
         {'EXIT', _} -> {error, Body};
@@ -318,6 +552,7 @@ parse_status(Body) when is_list(Body) ->
             [parse_status(Node) || Node <- xmerl_xpath:string("/status", Xml)]
     end.
 
+%% @private
 parse_users(Body) ->
     case (catch xmerl_scan:string(Body, [{quiet, true}])) of
         {'EXIT', _} -> {error, Body};
@@ -327,6 +562,7 @@ parse_users(Body) ->
             [parse_user(Node) || Node <- xmerl_xpath:string("/users/user", Xml)]
     end.
 
+%% @private
 parse_user(Node) when is_tuple(Node) ->
     UserRec = #user{
         id = text_or_default(Node, ["/user/id/text()", "/sender/id/text()"], ""),
@@ -357,6 +593,7 @@ parse_user(Node) when is_tuple(Node) ->
         [StatusNode] -> UserRec#user{ status = parse_status(StatusNode) }
     end;
 
+%% @private
 parse_user(Body) when is_list(Body) ->
     case (catch xmerl_scan:string(Body, [{quiet, true}])) of
         {'EXIT', _} -> {error, Body};
@@ -366,6 +603,7 @@ parse_user(Body) when is_list(Body) ->
             [parse_user(Node) || Node <- xmerl_xpath:string("/user", Xml)]
     end.
 
+%% @private
 text_or_default(_, [], Default) -> Default;
 text_or_default(Xml, [Xpath | Tail], Default) ->
     case xmerl_xpath:string(Xpath, Xml) of
