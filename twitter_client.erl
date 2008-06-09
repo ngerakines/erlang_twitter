@@ -507,6 +507,10 @@ request_url(post, Url, Login, Pass, Args) ->
 
 %% @private
 headers(nil, nil) -> [{"User-Agent", "ErlangTwitterClient/0.1"}];
+headers(User, Pass) when is_binary(User) ->
+    headers(binary_to_list(User), Pass);
+headers(User, Pass) when is_binary(Pass) ->
+    headers(User, binary_to_list(Pass));
 headers(User, Pass) -> 
     UP = base64:encode(User ++ ":" ++ Pass),
     Basic = lists:flatten(io_lib:fwrite("Basic ~s", [UP])),
