@@ -610,7 +610,11 @@ parse_user(Body) when is_list(Body) ->
 %% @private
 text_or_default(_, [], Default) -> Default;
 text_or_default(Xml, [Xpath | Tail], Default) ->
-    case xmerl_xpath:string(Xpath, Xml) of
-        [ #xmlText{value = Val} ] -> Val;
-        _ -> text_or_default(Xml, Tail, Default)
-    end.
+    Res = lists:foldr(
+        fun(#xmlText{value = Val}, Acc) -> lists:append(Val, Acc);
+           (_, Acc) -> Acc
+        end,
+        Default,
+        xmerl_xpath:string(Xpath, Xml)
+    ),
+    text_or_default(Xml, Tail, Res).
