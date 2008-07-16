@@ -74,7 +74,8 @@
     request_url/5, start/2, status_destroy/3, status_friends_timeline/3,
     status_public_timeline/3, status_replies/3, status_show/3,
     status_update/3, status_user_timeline/3, text_or_default/3,
-    user_featured/3, user_followers/3, user_friends/3, user_show/3
+    user_featured/3, user_followers/3, user_friends/3, user_show/3,
+    account_rate_limit_status/3
 ]).
 
 -include("twitter_client.hrl").
@@ -261,6 +262,11 @@ account_update_delivery_device(Login, Password, Args) ->
     Url = build_url("http://twitter.com/account/update_delivery_device.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
     parse_user(Body).
+
+account_rate_limit_status(Login, Password, Args) ->
+    Url = build_url("http://twitter.com/account/rate_limit_status.xml", Args),
+    Body = request_url(get, Url, Login, Password, nil),
+    Body.
 
 %% % -
 %% % Direct Message API methods
