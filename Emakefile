@@ -1,0 +1,1 @@
+{"src/*", [{outdir, "./"}, {i,"./include"}]}.

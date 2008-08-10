@@ -23,7 +23,7 @@
 %% 
 %% @author Nick Gerakines <nick@gerakines.net>
 %% @copyright 2008 Nick Gerakines
-%% @version 0.2
+%% @version 0.3
 %% @doc Provides access to the Twitter web service. Mostly through the
 %% clever use of REST-like requests and XML parsing.
 %% 
@@ -54,45 +54,59 @@
 -behaviour(gen_server).
 
 -author("Nick Gerakines <nick@gerakines.net>").
--version("0.2").
+-version("0.3").
 
 -export([
     init/1, terminate/2, code_change/3,
     handle_call/3, handle_cast/2, handle_info/2
 ]).
 
--export([account_archive/3, account_end_session/3,
-    account_update_delivery_device/3, account_update_location/3,
-    account_verify_credentials/3, block_create/3, block_destroy/3,
-    build_url/2, call/2, call/3, clean_name/1, collect_account_archive/5,
-    collect_direct_messages/5, collect_favorites/4, collect_user_followers/4,
-    direct_destroy/3, direct_messages/3, direct_new/3, direct_sent/3,
-    favorites_create/3, favorites_destroy/3, favorites_favorites/3,
-    friendship_create/3, friendship_destroy/3, friendship_exists/3,
-    headers/2, help_test/3, notification_follow/3, notification_leave/3,
-    parse_status/1, parse_statuses/1, parse_user/1, parse_users/1,
-    request_url/5, start/2, status_destroy/3, status_friends_timeline/3,
-    status_public_timeline/3, status_replies/3, status_show/3,
-    status_update/3, status_user_timeline/3, text_or_default/3,
-    user_featured/3, user_followers/3, user_friends/3, user_show/3,
-    account_rate_limit_status/3
-]).
+-export([account_archive/4, account_end_session/4, account_rate_limit_status/4,
+account_update_delivery_device/4, account_update_location/4, account_verify_credentials/4,
+add_session/2, block_create/4, block_destroy/4, build_url/2, call/2, call/3,
+collect_account_archive/6, collect_direct_messages/6, collect_favorites/5,
+collect_user_followers/5, direct_destroy/4, direct_messages/4, direct_new/4,
+direct_sent/4, favorites_create/4, favorites_destroy/4, favorites_favorites/4,
+friendship_create/4, friendship_destroy/4, friendship_exists/4, headers/2, help_test/4,
+info/0, notification_follow/4, notification_leave/4, parse_status/1, parse_statuses/1,
+parse_user/1, parse_users/1, request_url/5, session_from_client/2, set/2, start/0,
+status_destroy/4, status_friends_timeline/4, status_public_timeline/4, status_replies/4,
+status_show/4, status_update/4, status_user_timeline/4, text_or_default/3, user_featured/4,
+user_followers/4, user_friends/4, user_show/4, delay/0]).
 
 -include("twitter_client.hrl").
 -include_lib("xmerl/include/xmerl.hrl").
 
--define(UNIQUEPREFIX,"twitterclient_").
+-record(erlang_twitter, {sessions, base_url, delay, lastcall}).
 
--record(state, {login, password}).
+%% @spec start() -> Result
+%% where 
+%%       Result = {ok, pid()} | Error
+%% @doc Start a twitter_client gen_server process for a Twitter user.
+start() ->
+    inets:start(),
+    gen_server:start_link({global, ?MODULE}, ?MODULE, [], []).
 
-%% @spec start(Login, Password) -> Result
+%% @spec add_session(Login, Password) -> ok
 %% where 
 %%       Login = string()
 %%       Password = string()
-%%       Result = {ok, pid()} | Error
 %% @doc Start a twitter_client gen_server process for a Twitter user.
-start(Login, Password) ->
-    gen_server:start_link({local, clean_name(Login)}, ?MODULE, [Login, Password], []).
+add_session(Login, Password) ->
+    gen_server:call({global, ?MODULE}, {add_session, Login, Password}, infinity).
+
+set(base_url, Value) ->
+    gen_server:call({global, ?MODULE}, {base_url, Value}, infinity);
+
+set(delay, Value) ->
+    gen_server:call({global, ?MODULE}, {delay, Value}, infinity).
+
+info() ->
+    gen_server:call({global, ?MODULE}, {info}, infinity).
+
+delay() ->
+    gen_server:call({global, ?MODULE}, {should_wait}, infinity).    
+
 
 %% @equiv call(Client, Method, [])
 call(Client, Method) ->
@@ -115,38 +129,74 @@ call(Client, Method) ->
 %% Calling this method does not verify that the given gen_server process
 %% exists or is running.
 call(Client, Method, Args) ->
-    gen_server:call(clean_name(Client), {Method, Args}, infinity).
-
-%% @private
-clean_name(Name) when is_list(Name) ->
-    list_to_atom(lists:concat([?UNIQUEPREFIX, Name]));
-
-%% @private
-clean_name(Name) when is_atom(Name) ->
-    list_to_atom(lists:concat([?UNIQUEPREFIX, atom_to_list(Name)])).
+    gen_server:call({global, ?MODULE}, {Client, Method, Args}, infinity).
 
 %% % -
 %% % gen_server functions
 
 %% @private
-init([Login, Password]) ->
-    {ok, #state{login = Login, password = Password }}.
+init(_) ->
+    {ok, #erlang_twitter{
+        sessions = gb_trees:empty(),
+        base_url = "http://twitter.com/",
+        delay = 0,
+        lastcall = calendar:datetime_to_gregorian_seconds(erlang:universaltime())
+    }}.
 
 %% @private
-handle_call({collect_direct_messages, LowID}, _From, State) ->
-    Messages = twitter_client:collect_direct_messages(State#state.login, State#state.password, 0, LowID, []),
-    {reply, Messages, State};
+session_from_client(State, Client) ->
+    case gb_trees:is_defined(Client, State#erlang_twitter.sessions) of
+        false -> {error, invalid_client};
+        true -> gb_trees:get(Client, State#erlang_twitter.sessions)
+    end.
 
-handle_call({collect_user_followers, _}, _From, State) ->
-    Followers = twitter_client:collect_user_followers(State#state.login, State#state.password, 0, []),
-    {reply, Followers, State};
+handle_call({base_url, BaseUrl}, _From, State) ->
+    {reply, ok, State#erlang_twitter{ base_url = BaseUrl }};
 
-handle_call({Method, Args}, _From, State) ->
-    Response = case erlang:function_exported(twitter_client, Method, 3) of 
-        false -> {error, unsupported_method};
-        _ -> apply(twitter_client, Method, [State#state.login, State#state.password, Args])
+handle_call({delay, Delay}, _From, State) ->
+    {reply, ok, State#erlang_twitter{ delay = Delay }};
+
+%% Should work .. I think
+handle_call({should_wait}, _From, State) ->
+    Now = calendar:datetime_to_gregorian_seconds(erlang:universaltime()),
+    Delay = case xx of
+        0 -> 0;
+        Time when Time + State#erlang_twitter.delay < Now -> 0;
+        _ -> State#erlang_twitter.delay
     end,
-    {reply, Response, State};
+    {reply, Delay, State};
+
+handle_call({add_session, Login, Password}, _From, State) ->
+    NewTree =  case gb_trees:is_defined(Login, State#erlang_twitter.sessions) of
+        true -> State#erlang_twitter.sessions;
+        false -> gb_trees:insert(Login, {Login, Password}, State#erlang_twitter.sessions)
+    end,
+    {reply, ok, State#erlang_twitter{ sessions = NewTree }};
+
+handle_call({remove_session, Login}, _From, State) ->
+    NewTree =  case gb_trees:is_defined(Login, State#erlang_twitter.sessions) of
+        true -> gb_trees:delete(Login, State#erlang_twitter.sessions);
+        false -> State#erlang_twitter.sessions
+    end,
+    {reply, ok, State#erlang_twitter{ sessions = NewTree }};
+
+handle_call({info}, _From, State) ->
+    {reply, State, State};
+
+handle_call({Client, Method, Args}, _From, State) ->
+    Now = calendar:datetime_to_gregorian_seconds(erlang:universaltime()),
+    Response = case session_from_client(State, Client) of
+        {error, Reason} -> {error, Reason};
+        {Login, Password} ->
+            try apply(twitter_client, Method, [State#erlang_twitter.base_url, Login, Password, Args])
+            catch
+                X:Y ->
+                    io:format("error: ~p:~p~n", [X, Y]),
+                    {error, unsupported_method}
+            end;
+        _ -> {error, unknown}
+    end,
+    {reply, Response, State#erlang_twitter{ lastcall = Now }};
 
 handle_call(stop, _From, State) -> {stop, normalStop, State};
 
@@ -155,6 +205,7 @@ handle_call(_, _From, State) -> {noreply, ok, State}.
 %% @private
 handle_cast(_Msg, State) -> {noreply, State}.
 
+%% @private
 handle_info(_Info, State) -> {noreply, State}.
 
 %% @private
@@ -168,13 +219,13 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 %% @doc Return a list of the most recent tweets as per the public timeline.
 %% This API call ignores the login and password strings given.
-status_public_timeline(_Login, _Password, Args) ->
-    Url = build_url("http://twitter.com/statuses/public_timeline.xml", Args),
+status_public_timeline(RootUrl, _Login, _Password, Args) ->
+    Url = build_url(RootUrl ++ "statuses/public_timeline.xml", Args),
     Body = request_url(get, Url, nil, nil, nil),
     parse_statuses(Body).
 
-status_friends_timeline(Login, Password, Args) ->
-    UrlBase = "http://twitter.com/statuses/friends_timeline",
+status_friends_timeline(RootUrl, Login, Password, Args) ->
+    UrlBase = RootUrl ++ "statuses/friends_timeline",
     Url = case lists:keytake("id", 1, Args) of 
         false ->
             build_url(UrlBase ++ ".xml", Args);
@@ -184,8 +235,8 @@ status_friends_timeline(Login, Password, Args) ->
     Body = request_url(get, Url, Login, Password, nil),
     parse_statuses(Body).
 
-status_user_timeline(Login, Password, Args) ->
-    UrlBase = "http://twitter.com/statuses/user_timeline",
+status_user_timeline(RootUrl, Login, Password, Args) ->
+    UrlBase = RootUrl ++ "statuses/user_timeline",
     Url = case lists:keytake("id", 1, Args) of 
         false ->
             build_url(UrlBase ++ ".xml", Args);
@@ -195,8 +246,8 @@ status_user_timeline(Login, Password, Args) ->
     Body = request_url(get, Url, Login, Password, nil),
     parse_statuses(Body).
 
-status_show(Login, Password, Args) ->
-    UrlBase = "http://twitter.com/statuses/show/",
+status_show(RootUrl, Login, Password, Args) ->
+    UrlBase = RootUrl ++ "statuses/show/",
     case Args of
         [{"id", Id}] ->
             Url = build_url(UrlBase ++ Id ++ ".xml", []),
@@ -205,18 +256,18 @@ status_show(Login, Password, Args) ->
         _ -> {error}
     end.
 
-status_update(Login, Password, Args) ->
-    Url = "http://twitter.com/statuses/update.xml",
+status_update(RootUrl, Login, Password, Args) ->
+    Url = RootUrl ++ "statuses/update.xml",
     Body = request_url(post, Url, Login, Password, Args),
     parse_status(Body).
 
-status_replies(Login, Password, Args) ->
-    Url = build_url("http://twitter.com/statuses/replies.xml", Args),
+status_replies(RootUrl, Login, Password, Args) ->
+    Url = build_url(RootUrl ++ "statuses/replies.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
     parse_statuses(Body).
 
-status_destroy(Login, Password, Args) ->
-    UrlBase = "http://twitter.com/statuses/destroy/",
+status_destroy(RootUrl, Login, Password, Args) ->
+    UrlBase = RootUrl ++ "statuses/destroy/",
     case Args of
         [{"id", Id}] ->
             Url = build_url(UrlBase ++ Id ++ ".xml", []),
@@ -228,75 +279,75 @@ status_destroy(Login, Password, Args) ->
 %% % -
 %% % Account API methods
 
-account_verify_credentials(Login, Password, _) ->
-    Url = build_url("http://twitter.com/account/verify_credentials.xml", []),
+account_verify_credentials(RootUrl, Login, Password, _) ->
+    Url = build_url(RootUrl ++ "account/verify_credentials.xml", []),
     case request_url(get, Url, Login, Password, nil) of
         "<authorized>true</authorized>" -> true;
         _ -> false
     end.
 
-account_end_session(Login, Password, _) ->
-    Url = build_url("http://twitter.com/account/end_session", []),
+account_end_session(RootUrl, Login, Password, _) ->
+    Url = build_url(RootUrl ++ "account/end_session", []),
     request_url(get, Url, Login, Password, nil).
 
-account_archive(Login, Password, Args) ->
-    Url = build_url("http://twitter.com/account/archive.xml", Args),
+account_archive(RootUrl, Login, Password, Args) ->
+    Url = build_url(RootUrl ++ "account/archive.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
     parse_statuses(Body).
 
-collect_account_archive(Login, Password, Page, Args, Acc) ->
+collect_account_archive(RootUrl, Login, Password, Page, Args, Acc) ->
     NArgs = [{"page", integer_to_list(Page)} ] ++ Args,
-    Messages = twitter_client:account_archive(Login, Password, NArgs),
+    Messages = twitter_client:account_archive(RootUrl, Login, Password, NArgs),
     case length(Messages) of
-        80 -> collect_account_archive(Login, Password, Page + 1, Args, [Messages | Acc]);
+        80 -> collect_account_archive(RootUrl, Login, Password, Page + 1, Args, [Messages | Acc]);
         0 -> lists:flatten(Acc);
         _ -> lists:flatten([Messages | Acc])
     end.
 
-account_update_location(Login, Password, Args) ->
-    Url = build_url("http://twitter.com/account/update_location.xml", Args),
+account_update_location(RootUrl, Login, Password, Args) ->
+    Url = build_url(RootUrl ++ "account/update_location.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
     parse_user(Body).
 
-account_update_delivery_device(Login, Password, Args) ->
-    Url = build_url("http://twitter.com/account/update_delivery_device.xml", Args),
+account_update_delivery_device(RootUrl, Login, Password, Args) ->
+    Url = build_url(RootUrl ++ "account/update_delivery_device.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
     parse_user(Body).
 
-account_rate_limit_status(Login, Password, Args) ->
-    Url = build_url("http://twitter.com/account/rate_limit_status.xml", Args),
+account_rate_limit_status(RootUrl, Login, Password, Args) ->
+    Url = build_url(RootUrl ++ "account/rate_limit_status.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
     Body.
 
 %% % -
 %% % Direct Message API methods
 
-direct_messages(Login, Password, Args) ->
-    Url = build_url("http://twitter.com/direct_messages.xml", Args),
+direct_messages(RootUrl, Login, Password, Args) ->
+    Url = build_url(RootUrl ++ "direct_messages.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
     parse_statuses(Body).
 
-collect_direct_messages(Login, Password, Page, LowID, Acc) ->
+collect_direct_messages(RootUrl, Login, Password, Page, LowID, Acc) ->
     Args = [{"page", integer_to_list(Page)}, {"since_id", integer_to_list(LowID)}],
-    Messages = twitter_client:direct_messages(Login, Password, Args),
+    Messages = twitter_client:direct_messages(RootUrl, Login, Password, Args),
     case length(Messages) of
-        20 -> collect_direct_messages(Login, Password, Page + 1, LowID, [Messages | Acc]);
+        20 -> collect_direct_messages(RootUrl, Login, Password, Page + 1, LowID, [Messages | Acc]);
         0 -> lists:flatten(Acc);
         _ -> lists:flatten([Messages | Acc])
     end.
 
-direct_new(Login, Password, Args) ->
-    Url = "http://twitter.com/direct_messages/new.xml",
+direct_new(RootUrl, Login, Password, Args) ->
+    Url = RootUrl ++ "direct_messages/new.xml",
     Body = request_url(post, Url, Login, Password, Args),
     parse_status(Body).
 
-direct_sent(Login, Password, Args) ->
-    Url = build_url("http://twitter.com/direct_messages/sent.xml", Args),
+direct_sent(RootUrl, Login, Password, Args) ->
+    Url = build_url(RootUrl ++ "direct_messages/sent.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
     parse_statuses(Body).
 
-direct_destroy(Login, Password, Args) ->
-    UrlBase = "http://twitter.com/direct_messages/destroy/",
+direct_destroy(RootUrl, Login, Password, Args) ->
+    UrlBase = RootUrl ++ "direct_messages/destroy/",
     case Args of
         [{"id", Id}] ->
             Url = build_url(UrlBase ++ Id ++ ".xml", []),
@@ -308,8 +359,8 @@ direct_destroy(Login, Password, Args) ->
 %% % -
 %% % Favorites API methods
 
-favorites_favorites(Login, Password, Args) ->
-    UrlBase = "http://twitter.com/favorites",
+favorites_favorites(RootUrl, Login, Password, Args) ->
+    UrlBase = RootUrl ++ "favorites",
     Url = case lists:keytake("id", 1, Args) of 
         false ->
             build_url(UrlBase ++ ".xml", Args);
@@ -319,17 +370,17 @@ favorites_favorites(Login, Password, Args) ->
     Body = request_url(get, Url, Login, Password, nil),
     parse_statuses(Body).
 
-collect_favorites(Login, Password, Page, Acc) ->
+collect_favorites(RootUrl, Login, Password, Page, Acc) ->
     Args = [{"page", integer_to_list(Page)}],
-    Messages = twitter_client:favorites_favorites(Login, Password, Args),
+    Messages = twitter_client:favorites_favorites(RootUrl, Login, Password, Args),
     case length(Messages) of
-        20 -> collect_favorites(Login, Password, Page + 1, [Messages | Acc]);
+        20 -> collect_favorites(RootUrl, Login, Password, Page + 1, [Messages | Acc]);
         0 -> lists:flatten(Acc);
         _ -> lists:flatten([Messages | Acc])
     end.
 
-favorites_create(Login, Password, Args) ->
-    UrlBase = "http://twitter.com/favorites/create/",
+favorites_create(RootUrl, Login, Password, Args) ->
+    UrlBase = RootUrl ++ "favorites/create/",
     case Args of
         [{"id", Id}] ->
             Url = build_url(UrlBase ++ Id ++ ".xml", []),
@@ -338,8 +389,8 @@ favorites_create(Login, Password, Args) ->
         _ -> {error}
     end.
 
-favorites_destroy(Login, Password, Args) ->
-    UrlBase = "http://twitter.com/favorites/destroy/",
+favorites_destroy(RootUrl, Login, Password, Args) ->
+    UrlBase = RootUrl ++ "favorites/destroy/",
     case Args of
         [{"id", Id}] ->
             Url = build_url(UrlBase ++ Id ++ ".xml", []),
@@ -351,13 +402,13 @@ favorites_destroy(Login, Password, Args) ->
 %% % -
 %% % Friendship API methods
 
-friendship_exists(Login, Password, Args) ->
-    Url = build_url("http://twitter.com/friendships/exists.xml", Args),
+friendship_exists(RootUrl, Login, Password, Args) ->
+    Url = build_url(RootUrl ++ "friendships/exists.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
     Body == "<friends>true</friends>".
 
-friendship_create(Login, Password, Args) ->
-    UrlBase = "http://twitter.com/friendships/create/",
+friendship_create(RootUrl, Login, Password, Args) ->
+    UrlBase = RootUrl ++ "friendships/create/",
     case Args of
         [{"id", Id}] ->
             Url = build_url(UrlBase ++ Id ++ ".xml", []),
@@ -366,8 +417,8 @@ friendship_create(Login, Password, Args) ->
         _ -> {error}
     end.
 
-friendship_destroy(Login, Password, Args) ->
-    UrlBase = "http://twitter.com/friendships/destroy/",
+friendship_destroy(RootUrl, Login, Password, Args) ->
+    UrlBase = RootUrl ++ "friendships/destroy/",
     case Args of
         [{"id", Id}] ->
             Url = build_url(UrlBase ++ Id ++ ".xml", []),
@@ -378,8 +429,8 @@ friendship_destroy(Login, Password, Args) ->
 %% % -
 %% % User API methods
 
-user_friends(Login, Password, Args) ->
-    UrlBase = "http://twitter.com/statuses/friends",
+user_friends(RootUrl, Login, Password, Args) ->
+    UrlBase = RootUrl ++ "statuses/friends",
     Url = case lists:keytake("id", 1, Args) of 
         false ->
             build_url(UrlBase ++ ".xml", Args);
@@ -389,26 +440,26 @@ user_friends(Login, Password, Args) ->
     Body = request_url(get, Url, Login, Password, nil),
     parse_users(Body).
 
-user_followers(Login, Password, Args) ->
-    Url = build_url("http://twitter.com/statuses/followers.xml", Args),
+user_followers(RootUrl, Login, Password, Args) ->
+    Url = build_url(RootUrl ++ "statuses/followers.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
     parse_users(Body).
 
-collect_user_followers(Login, Password, Page, Acc) ->
-    Followers = twitter_client:user_followers(Login, Password, [{"page", integer_to_list(Page)}, {"lite", "true"}]),
+collect_user_followers(RootUrl, Login, Password, Page, Acc) ->
+    Followers = twitter_client:user_followers(RootUrl, Login, Password, [{"page", integer_to_list(Page)}, {"lite", "true"}]),
     case length(Followers) of
-        100 -> collect_user_followers(Login, Password, Page + 1, [Followers | Acc]);
+        100 -> collect_user_followers(RootUrl, Login, Password, Page + 1, [Followers | Acc]);
         0 -> lists:flatten(Acc);
         _ -> lists:flatten([Followers | Acc])
     end.
 
-user_featured(_, _, _) ->
-    Url = build_url("http://twitter.com/statuses/featured.xml", []),
+user_featured(RootUrl, _, _, _) ->
+    Url = build_url(RootUrl ++ "statuses/featured.xml", []),
     Body = request_url(get, Url, nil, nil, nil),
     parse_users(Body).
 
-user_show(Login, Password, Args) ->
-    UrlBase = "http://twitter.com/users/show",
+user_show(RootUrl, Login, Password, Args) ->
+    UrlBase = RootUrl ++ "users/show",
     Url = case lists:keytake("id", 1, Args) of 
         false ->
             build_url(UrlBase ++ ".xml", Args);
@@ -421,8 +472,8 @@ user_show(Login, Password, Args) ->
 %% % -
 %% % Notification API methods
 
-notification_follow(Login, Password, Args) ->
-    UrlBase = "http://twitter.com/notifications/follow/",
+notification_follow(RootUrl, Login, Password, Args) ->
+    UrlBase = RootUrl ++ "notifications/follow/",
     case Args of
         [{"id", Id}] ->
             Url = build_url(UrlBase ++ Id ++ ".xml", []),
@@ -431,8 +482,8 @@ notification_follow(Login, Password, Args) ->
         _ -> {error}
     end.
 
-notification_leave(Login, Password, Args) ->
-    UrlBase = "http://twitter.com/notifications/leave/",
+notification_leave(RootUrl, Login, Password, Args) ->
+    UrlBase = RootUrl ++ "notifications/leave/",
     case Args of
         [{"id", Id}] ->
             Url = build_url(UrlBase ++ Id ++ ".xml", []),
@@ -444,8 +495,8 @@ notification_leave(Login, Password, Args) ->
 %% % -
 %% % Block API methods
 
-block_create(Login, Password, Args) ->
-    UrlBase = "http://twitter.com/blocks/create/",
+block_create(RootUrl, Login, Password, Args) ->
+    UrlBase = RootUrl ++ "blocks/create/",
     case Args of
         [{"id", Id}] ->
             Url = build_url(UrlBase ++ Id ++ ".xml", []),
@@ -454,8 +505,8 @@ block_create(Login, Password, Args) ->
         _ -> {error}
     end.
 
-block_destroy(Login, Password, Args) ->
-    UrlBase = "http://twitter.com/blocks/destroy/",
+block_destroy(RootUrl, Login, Password, Args) ->
+    UrlBase = RootUrl ++ "blocks/destroy/",
     case Args of
         [{"id", Id}] ->
             Url = build_url(UrlBase ++ Id ++ ".xml", []),
@@ -467,8 +518,8 @@ block_destroy(Login, Password, Args) ->
 %% % -
 %% % Help API methods
 
-help_test(_, _, _) ->
-    Url = build_url("http://twitter.com/help/test.xml", []),
+help_test(RootUrl, _, _, _) ->
+    Url = build_url(RootUrl ++ "help/test.xml", []),
     Body = request_url(get, Url, nil, nil, nil),
     Body == "<ok>true</ok>".
 

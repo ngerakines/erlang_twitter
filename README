@@ -1,5 +1,0 @@
-erlang_twitter contains an Erlang twitter client. This code is still under active development.
-
-* twitter_client -- A twitter client and client manager. This module contains all of the required functions to send and parse twitter API requests. The functions provided can be called on their own or managed by the twitter_client gen_server.
-
-* twitterbot -- A module that provides the structure to create a twitter bot.
