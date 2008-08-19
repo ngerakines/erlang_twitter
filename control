@@ -1,4 +1,4 @@
-Package: erlang-armory
+Package: erlang-twitter
 Version: 0.3
 Section: web 
 Priority: optional
@@ -7,5 +7,5 @@ Essential: no
 Depends: erlang
 Installed-Size: 1024
 Maintainer: Nick Gerakines <nick@gerakines.net>
-Provides: erlang_armory
-Description: This is an interface to the World of Warcraft Armory.
+Provides: erlang_twitter
+Description: A simple Twitter/Identi.ca interface library.
