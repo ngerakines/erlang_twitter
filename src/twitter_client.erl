@@ -535,7 +535,7 @@ build_url(Url, Args) ->
                 (Rec, Ac) -> [Rec, "&" | Ac]
             end,
             [],
-            [K ++ "=" ++ yaws_api:url_encode(V) || {K, V} <- Args]
+            [K ++ "=" ++ twitter_client_utils:url_encode(V) || {K, V} <- Args]
         )
     ),
     Url ++ "?" ++ ArgStr.
@@ -553,7 +553,7 @@ request_url(post, Url, Login, Pass, Args) ->
         lists:foldl(
             fun (Rec, []) -> [Rec]; (Rec, Ac) -> [Rec, "&" | Ac] end,
             [],
-            [K ++ "=" ++ yaws_api:url_encode(V) || {K, V} <- Args]
+            [K ++ "=" ++ twitter_client_utils:url_encode(V) || {K, V} <- Args]
         )
     ),
     HTTPResult = http:request(post, {Url, headers(Login, Pass), "application/x-www-form-urlencoded", Body} , [], []),
