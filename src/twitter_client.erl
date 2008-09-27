@@ -159,7 +159,7 @@ handle_call({delay, Delay}, _From, State) ->
 %% Should work .. I think
 handle_call({should_wait}, _From, State) ->
     Now = calendar:datetime_to_gregorian_seconds(erlang:universaltime()),
-    Delay = case xx of
+    Delay = case State#erlang_twitter.delay of
         0 -> 0;
         Time when Time + State#erlang_twitter.delay < Now -> 0;
         _ -> State#erlang_twitter.delay
