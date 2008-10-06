@@ -411,8 +411,8 @@ friendship_create(RootUrl, Login, Password, Args) ->
     UrlBase = RootUrl ++ "friendships/create/",
     case Args of
         [{"id", Id}] ->
-            Url = build_url(UrlBase ++ Id ++ ".xml", []),
-            Body = request_url(get, Url, Login, Password, nil),
+            Url = UrlBase ++ Id ++ ".xml",
+            Body = request_url(post, Url, Login, Password, Args),
             parse_user(Body);
         _ -> {error}
     end.
