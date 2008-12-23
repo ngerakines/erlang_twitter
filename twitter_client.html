@@ -1,0 +1,340 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<title>Module twitter_client</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module twitter_client</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>Provides access to the Twitter web service.
+<p>Copyright © 2008 Nick Gerakines</p>
+
+<p><b>Version:</b> 0.3</p>
+<p><b>Behaviours:</b> <a href="gen_server.html"><tt>gen_server</tt></a>.</p>
+<p><b>Authors:</b> Nick Gerakines (<a href="mailto:nick@gerakines.net"><tt>nick@gerakines.net</tt></a>).</p>
+
+<h2><a name="description">Description</a></h2><p>Provides access to the Twitter web service. Mostly through the  
+clever use of REST-like requests and XML parsing.</p>
+ 
+  <p>This module attempts to provide complete access to the Twitter API. In  
+addition, it provides a simple gen_server process template to allow calls  
+to be made on behalf of a named user without having to send a username  
+and password each time.</p>
+ 
+  <p>When the gen_server feature is used to make Twitter API calls for a user,  
+a gen_server process is spawned locally and its name is prefixed to  
+prevent named process collision.</p>
+ 
+  <p><strong>Make sure you start inets (<code>inets:start().</code>) before you do
+  anything.</strong></p>
+ 
+  <h4>Quick start</h4>
+  <pre><code>
+  1&gt; inets:start().
+  2&gt; twitter_client:start("myname", "pass").
+  3&gt; twitter_client:account_verify_credentials("myname", "pass", []).
+    OR
+  3&gt; twitter_client:call("myname", account_verify_credentials).
+  4&gt; twitter_client:call("myname", user_timeline).
+  5&gt; twitter_client:call("myname", status_update, [{"status", "Testing the erlang_twitter twitter_client.erl library."}]).
+  6&gt; twitter_client:call("myname", user_timeline).
+  </code></pre>
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#account_archive-4">account_archive/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#account_end_session-4">account_end_session/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#account_rate_limit_status-4">account_rate_limit_status/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#account_update_delivery_device-4">account_update_delivery_device/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#account_update_location-4">account_update_location/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#account_verify_credentials-4">account_verify_credentials/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#add_session-2">add_session/2</a></td><td>Start a twitter_client gen_server process for a Twitter user.</td></tr>
+<tr><td valign="top"><a href="#block_create-4">block_create/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#block_destroy-4">block_destroy/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#call-2">call/2</a></td><td>Equivalent to <a href="#call-3"><tt>call(Client, Method, [])</tt></a>.
+</td></tr>
+<tr><td valign="top"><a href="#call-3">call/3</a></td><td>Make a request to a twitter_client gen_server process for a user.</td></tr>
+<tr><td valign="top"><a href="#collect_account_archive-6">collect_account_archive/6</a></td><td></td></tr>
+<tr><td valign="top"><a href="#collect_direct_messages-6">collect_direct_messages/6</a></td><td></td></tr>
+<tr><td valign="top"><a href="#collect_favorites-5">collect_favorites/5</a></td><td></td></tr>
+<tr><td valign="top"><a href="#collect_user_followers-5">collect_user_followers/5</a></td><td></td></tr>
+<tr><td valign="top"><a href="#delay-0">delay/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#direct_destroy-4">direct_destroy/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#direct_messages-4">direct_messages/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#direct_new-4">direct_new/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#direct_sent-4">direct_sent/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#favorites_create-4">favorites_create/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#favorites_destroy-4">favorites_destroy/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#favorites_favorites-4">favorites_favorites/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#friendship_create-4">friendship_create/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#friendship_destroy-4">friendship_destroy/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#friendship_exists-4">friendship_exists/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#handle_call-3">handle_call/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#help_test-4">help_test/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#info-0">info/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#notification_follow-4">notification_follow/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#notification_leave-4">notification_leave/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#set-2">set/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start-0">start/0</a></td><td>Start a twitter_client gen_server process for a Twitter user.</td></tr>
+<tr><td valign="top"><a href="#status_destroy-4">status_destroy/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#status_friends_timeline-4">status_friends_timeline/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#status_public_timeline-4">status_public_timeline/4</a></td><td>Return a list of the most recent tweets as per the public timeline.</td></tr>
+<tr><td valign="top"><a href="#status_replies-4">status_replies/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#status_show-4">status_show/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#status_update-4">status_update/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#status_user_timeline-4">status_user_timeline/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#user_featured-4">user_featured/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#user_followers-4">user_followers/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#user_friends-4">user_friends/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#user_show-4">user_show/4</a></td><td></td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="account_archive-4">account_archive/4</a></h3>
+<div class="spec">
+<p><tt>account_archive(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="account_end_session-4">account_end_session/4</a></h3>
+<div class="spec">
+<p><tt>account_end_session(RootUrl, Login, Password, X4) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="account_rate_limit_status-4">account_rate_limit_status/4</a></h3>
+<div class="spec">
+<p><tt>account_rate_limit_status(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="account_update_delivery_device-4">account_update_delivery_device/4</a></h3>
+<div class="spec">
+<p><tt>account_update_delivery_device(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="account_update_location-4">account_update_location/4</a></h3>
+<div class="spec">
+<p><tt>account_update_location(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="account_verify_credentials-4">account_verify_credentials/4</a></h3>
+<div class="spec">
+<p><tt>account_verify_credentials(RootUrl, Login, Password, X4) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="add_session-2">add_session/2</a></h3>
+<div class="spec">
+<p><tt>add_session(Login, Password) -&gt; ok</tt>
+<ul class="definitions"><li><tt>Login = string()</tt></li>
+<li><tt>Password = string()</tt></li>
+</ul></p>
+</div><p>Start a twitter_client gen_server process for a Twitter user.</p>
+
+<h3 class="function"><a name="block_create-4">block_create/4</a></h3>
+<div class="spec">
+<p><tt>block_create(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="block_destroy-4">block_destroy/4</a></h3>
+<div class="spec">
+<p><tt>block_destroy(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="call-2">call/2</a></h3>
+<div class="spec">
+<p><tt>call(Client, Method) -&gt; any()</tt></p>
+</div><p>Equivalent to <a href="#call-3"><tt>call(Client, Method, [])</tt></a>.</p>
+
+
+<h3 class="function"><a name="call-3">call/3</a></h3>
+<div class="spec">
+<p><tt>call(Client, Method, Args) -&gt; Result</tt>
+<ul class="definitions"><li><tt>Client = string() | atom()</tt></li>
+<li><tt>Method = atom()</tt></li>
+<li><tt>Args = [{any(), any()}]</tt></li>
+<li><tt>Result = any()</tt></li>
+</ul></p>
+</div><p><p>Make a request to a twitter_client gen_server process for a user.  
+This function attempts to call the named gen_server process for the given  
+client (usern). The method called maps directly to the available methods  
+provided by this module. Please refer to the specific methods for their  
+required and optional arguments. In most (all) cases the arguments  
+defined in the Twitter API documentation can be passed in directly as  
+string/string tuples.</p>
+ 
+  Calling this method does not verify that the given gen_server process
+  exists or is running.</p>
+
+<h3 class="function"><a name="collect_account_archive-6">collect_account_archive/6</a></h3>
+<div class="spec">
+<p><tt>collect_account_archive(RootUrl, Login, Password, Page, Args, Acc) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="collect_direct_messages-6">collect_direct_messages/6</a></h3>
+<div class="spec">
+<p><tt>collect_direct_messages(RootUrl, Login, Password, Page, LowID, Acc) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="collect_favorites-5">collect_favorites/5</a></h3>
+<div class="spec">
+<p><tt>collect_favorites(RootUrl, Login, Password, Page, Acc) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="collect_user_followers-5">collect_user_followers/5</a></h3>
+<div class="spec">
+<p><tt>collect_user_followers(RootUrl, Login, Password, Page, Acc) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="delay-0">delay/0</a></h3>
+<div class="spec">
+<p><tt>delay() -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="direct_destroy-4">direct_destroy/4</a></h3>
+<div class="spec">
+<p><tt>direct_destroy(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="direct_messages-4">direct_messages/4</a></h3>
+<div class="spec">
+<p><tt>direct_messages(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="direct_new-4">direct_new/4</a></h3>
+<div class="spec">
+<p><tt>direct_new(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="direct_sent-4">direct_sent/4</a></h3>
+<div class="spec">
+<p><tt>direct_sent(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="favorites_create-4">favorites_create/4</a></h3>
+<div class="spec">
+<p><tt>favorites_create(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="favorites_destroy-4">favorites_destroy/4</a></h3>
+<div class="spec">
+<p><tt>favorites_destroy(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="favorites_favorites-4">favorites_favorites/4</a></h3>
+<div class="spec">
+<p><tt>favorites_favorites(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="friendship_create-4">friendship_create/4</a></h3>
+<div class="spec">
+<p><tt>friendship_create(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="friendship_destroy-4">friendship_destroy/4</a></h3>
+<div class="spec">
+<p><tt>friendship_destroy(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="friendship_exists-4">friendship_exists/4</a></h3>
+<div class="spec">
+<p><tt>friendship_exists(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="handle_call-3">handle_call/3</a></h3>
+<div class="spec">
+<p><tt>handle_call(X1, From, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="help_test-4">help_test/4</a></h3>
+<div class="spec">
+<p><tt>help_test(RootUrl, X2, X3, X4) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="info-0">info/0</a></h3>
+<div class="spec">
+<p><tt>info() -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="notification_follow-4">notification_follow/4</a></h3>
+<div class="spec">
+<p><tt>notification_follow(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="notification_leave-4">notification_leave/4</a></h3>
+<div class="spec">
+<p><tt>notification_leave(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="set-2">set/2</a></h3>
+<div class="spec">
+<p><tt>set(X1, Value) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="start-0">start/0</a></h3>
+<div class="spec">
+<p><tt>start() -&gt; Result</tt>
+<ul class="definitions"><li><tt>Result = {ok, pid()} | Error</tt></li>
+</ul></p>
+</div><p>Start a twitter_client gen_server process for a Twitter user.</p>
+
+<h3 class="function"><a name="status_destroy-4">status_destroy/4</a></h3>
+<div class="spec">
+<p><tt>status_destroy(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="status_friends_timeline-4">status_friends_timeline/4</a></h3>
+<div class="spec">
+<p><tt>status_friends_timeline(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="status_public_timeline-4">status_public_timeline/4</a></h3>
+<div class="spec">
+<p><tt>status_public_timeline(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div><p>Return a list of the most recent tweets as per the public timeline.
+  This API call ignores the login and password strings given.</p>
+
+<h3 class="function"><a name="status_replies-4">status_replies/4</a></h3>
+<div class="spec">
+<p><tt>status_replies(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="status_show-4">status_show/4</a></h3>
+<div class="spec">
+<p><tt>status_show(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="status_update-4">status_update/4</a></h3>
+<div class="spec">
+<p><tt>status_update(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="status_user_timeline-4">status_user_timeline/4</a></h3>
+<div class="spec">
+<p><tt>status_user_timeline(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="user_featured-4">user_featured/4</a></h3>
+<div class="spec">
+<p><tt>user_featured(RootUrl, X2, X3, X4) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="user_followers-4">user_followers/4</a></h3>
+<div class="spec">
+<p><tt>user_followers(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="user_friends-4">user_friends/4</a></h3>
+<div class="spec">
+<p><tt>user_friends(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="user_show-4">user_show/4</a></h3>
+<div class="spec">
+<p><tt>user_show(RootUrl, Login, Password, Args) -&gt; any()</tt></p>
+</div>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Dec 23 2008, 09:09:52.</i></p>
+</body>
+</html>
