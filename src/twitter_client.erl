@@ -64,7 +64,7 @@
 -export([account_archive/4, account_end_session/4, account_rate_limit_status/4,
 account_update_delivery_device/4, account_update_location/4, account_verify_credentials/4,
 add_session/2, block_create/4, block_destroy/4, build_url/2, call/2, call/3,
-collect_account_archive/6, collect_direct_messages/6, collect_favorites/5,
+collect_account_archive/6, collect_direct_messages/6, collect_favorites/5, collect_user_friends/5,
 collect_user_followers/5, direct_destroy/4, direct_messages/4, direct_new/4,
 direct_sent/4, exists_session/1, favorites_create/4, favorites_destroy/4, favorites_favorites/4,
 friendship_create/4, friendship_destroy/4, friendship_exists/4, headers/2, help_test/4,
@@ -194,16 +194,31 @@ handle_call({Client, collect_direct_messages, LowId}, _From, State) ->
   Response = case session_from_client(State, Client) of
       {error, Reason} -> {error, Reason};
       {Login, Password} ->
-          try apply(twitter_client, collect_direct_messages, [State#erlang_twitter.base_url, Login, Password, 1, LowId, []])
-          catch
-              X:Y ->
-                  io:format("error: ~p:~p~n", [X, Y]),
-                  {error, unsupported_method}
-          end;
+          twitter_client:collect_direct_messages(State#erlang_twitter.base_url, Login, Password, 1, LowId, []);
       _ -> {error, unknown}
   end,
   {reply, Response, State#erlang_twitter{ lastcall = Now }};
-    
+  
+handle_call({Client, collect_user_friends, _Args}, _From, State) ->
+    Now = calendar:datetime_to_gregorian_seconds(erlang:universaltime()),
+    Response = case session_from_client(State, Client) of
+        {error, Reason} -> {error, Reason};
+        {Login, Password} ->
+            twitter_client:collect_user_friends(State#erlang_twitter.base_url, Login, Password, 1, []);
+        _ -> {error, unknown}
+    end,
+    {reply, Response, State#erlang_twitter{ lastcall = Now }};
+
+handle_call({Client, collect_user_followers, _Args}, _From, State) ->
+    Now = calendar:datetime_to_gregorian_seconds(erlang:universaltime()),
+    Response = case session_from_client(State, Client) of
+        {error, Reason} -> {error, Reason};
+        {Login, Password} ->
+            twitter_client:collect_user_followers(State#erlang_twitter.base_url, Login, Password, 1, []);
+        _ -> {error, unknown}
+    end,
+    {reply, Response, State#erlang_twitter{ lastcall = Now }};
+
 handle_call({Client, Method, Args}, _From, State) ->
     Now = calendar:datetime_to_gregorian_seconds(erlang:universaltime()),
     Response = case session_from_client(State, Client) of
@@ -462,6 +477,14 @@ user_friends(RootUrl, Login, Password, Args) ->
     end,
     Body = request_url(get, Url, Login, Password, nil),
     parse_users(Body).
+
+collect_user_friends(RootUrl, Login, Password, Page, Acc) ->
+    Friends = twitter_client:user_friends(RootUrl, Login, Password, [{"page", integer_to_list(Page)}, {"lite", "true"}]),
+    case length(Friends) of
+      100 -> collect_user_friends(RootUrl, Login, Password, Page + 1, [Friends | Acc]);
+      0 -> lists:flatten(Acc);
+      _ -> lists:flatten([Friends | Acc])
+    end.
 
 user_followers(RootUrl, Login, Password, Args) ->
     Url = build_url(RootUrl ++ "statuses/followers.xml", Args),
