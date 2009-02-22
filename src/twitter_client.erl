@@ -66,7 +66,7 @@ account_update_delivery_device/4, account_update_location/4, account_verify_cred
 add_session/2, block_create/4, block_destroy/4, build_url/2, call/2, call/3,
 collect_account_archive/6, collect_direct_messages/6, collect_favorites/5,
 collect_user_followers/5, direct_destroy/4, direct_messages/4, direct_new/4,
-direct_sent/4, favorites_create/4, favorites_destroy/4, favorites_favorites/4,
+direct_sent/4, exists_session/1, favorites_create/4, favorites_destroy/4, favorites_favorites/4,
 friendship_create/4, friendship_destroy/4, friendship_exists/4, headers/2, help_test/4,
 info/0, notification_follow/4, notification_leave/4, parse_status/1, parse_statuses/1,
 parse_user/1, parse_users/1, request_url/5, session_from_client/2, set/2, start/0,
@@ -94,6 +94,9 @@ start() ->
 %% @doc Start a twitter_client gen_server process for a Twitter user.
 add_session(Login, Password) ->
     gen_server:call({global, ?MODULE}, {add_session, Login, Password}, infinity).
+    
+exists_session(Login) ->
+    gen_server:call({global, ?MODULE}, {exists_session, Login}, infinity).
 
 set(base_url, Value) ->
     gen_server:call({global, ?MODULE}, {base_url, Value}, infinity);
@@ -180,9 +183,27 @@ handle_call({remove_session, Login}, _From, State) ->
     end,
     {reply, ok, State#erlang_twitter{ sessions = NewTree }};
 
+handle_call({exists_session, Login}, _From, State) ->
+    {reply, gb_trees:is_defined(Login, State#erlang_twitter.sessions), State};
+
 handle_call({info}, _From, State) ->
     {reply, State, State};
-
+    
+handle_call({Client, collect_direct_messages, LowId}, _From, State) ->
+  Now = calendar:datetime_to_gregorian_seconds(erlang:universaltime()),
+  Response = case session_from_client(State, Client) of
+      {error, Reason} -> {error, Reason};
+      {Login, Password} ->
+          try apply(twitter_client, collect_direct_messages, [State#erlang_twitter.base_url, Login, Password, 1, LowId, []])
+          catch
+              X:Y ->
+                  io:format("error: ~p:~p~n", [X, Y]),
+                  {error, unsupported_method}
+          end;
+      _ -> {error, unknown}
+  end,
+  {reply, Response, State#erlang_twitter{ lastcall = Now }};
+    
 handle_call({Client, Method, Args}, _From, State) ->
     Now = calendar:datetime_to_gregorian_seconds(erlang:universaltime()),
     Response = case session_from_client(State, Client) of
@@ -281,9 +302,11 @@ status_destroy(RootUrl, Login, Password, Args) ->
 
 account_verify_credentials(RootUrl, Login, Password, _) ->
     Url = build_url(RootUrl ++ "account/verify_credentials.xml", []),
-    case request_url(get, Url, Login, Password, nil) of
-        "<authorized>true</authorized>" -> true;
-        _ -> false
+    HTTPResult = http:request(get, {Url, headers(Login, Password)}, [], []),
+    case HTTPResult of
+        {ok, {{_HTTPVersion, 200, _Text}, _Headers, _Body}} -> true;
+        {ok, {{_HTTPVersion, 401, _Text}, _Headers, _Body}} -> false;
+        _ -> {error}
     end.
 
 account_end_session(RootUrl, Login, Password, _) ->
@@ -547,7 +570,7 @@ request_url(get, Url, Login, Pass, _) ->
         {ok, {_Status, _Headers, Body}} -> Body;
         _ -> {error}
     end;
-
+    
 request_url(post, Url, Login, Pass, Args) ->
     Body = lists:concat(
         lists:foldl(
