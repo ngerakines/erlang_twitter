@@ -70,6 +70,7 @@ direct_sent/4, exists_session/1, favorites_create/4, favorites_destroy/4, favori
 friendship_create/4, friendship_destroy/4, friendship_exists/4, headers/2, help_test/4,
 info/0, notification_follow/4, notification_leave/4, parse_status/1, parse_statuses/1,
 parse_user/1, parse_users/1, request_url/5, session_from_client/2, set/2, start/0,
+social_graph_friend_ids/4, social_graph_follower_ids/4,
 status_destroy/4, status_friends_timeline/4, status_public_timeline/4, status_replies/4,
 status_show/4, status_update/4, status_user_timeline/4, text_or_default/3, user_featured/4,
 user_followers/4, user_friends/4, user_show/4, delay/0]).
@@ -568,6 +569,19 @@ help_test(RootUrl, _, _, _) ->
     Url = build_url(RootUrl ++ "help/test.xml", []),
     Body = request_url(get, Url, nil, nil, nil),
     Body == "<ok>true</ok>".
+    
+%% % -
+%% % Social Graph API Methods
+
+social_graph_friend_ids(RootUrl, Login, Password, _Args) ->
+    Url = build_url(RootUrl ++ "friends/ids/" ++ Login ++ ".xml", []),
+    Body = request_url(get, Url, Login, Password, nil),
+    parse_ids(Body).
+
+social_graph_follower_ids(RootUrl, Login, Password, _Args) ->
+    Url = build_url(RootUrl ++ "followers/ids/" ++ Login ++ ".xml", []),
+    Body = request_url(get, Url, Login, Password, nil),
+    parse_ids(Body).
 
 %% % -
 %% %  Internal request functions
@@ -632,6 +646,16 @@ parse_statuses(Body) ->
             [parse_status(Node) || Node <- lists:flatten([xmerl_xpath:string("/statuses/status", Xml), xmerl_xpath:string("/direct-messages/direct_message", Xml)])]
     end.
 
+%% @private
+parse_ids(Body) ->
+    case (catch xmerl_scan:string(Body, [{quiet, true}])) of
+        {'EXIT', _} -> {error};
+        {error, _} -> {error};
+        Result ->
+            {Xml, _Rest} = Result,
+            [parse_id(Node) || Node <- xmerl_xpath:string("/ids/id", Xml)]
+    end.
+    
 %% @private
 parse_status(Node) when is_tuple(Node) ->
     Status = #status{
@@ -709,6 +733,11 @@ parse_user(Body) when is_list(Body) ->
             {Xml, _Rest} = Result,
             [parse_user(Node) || Node <- xmerl_xpath:string("/user", Xml)]
     end.
+
+%% @private
+parse_id(Node) ->
+    Text = text_or_default(Node, ["/id/text()"], ""),
+    twitter_client_utils:string_to_int(Text).
 
 %% @private
 text_or_default(_, [], Default) -> Default;

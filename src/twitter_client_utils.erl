@@ -1,6 +1,6 @@
 -module(twitter_client_utils).
 
--export([url_encode/1]).
+-export([url_encode/1, string_to_int/1]).
 
 %% some utility functions stolen from yaws_api module
 
@@ -41,3 +41,9 @@ old_integer_to_hex(I) when I<16 ->
 old_integer_to_hex(I) when I>=16 ->
     N = trunc(I/16),
     old_integer_to_hex(N) ++ old_integer_to_hex(I rem 16).
+
+string_to_int(S) ->
+    case string:to_integer(S) of 
+      {Int,[]} -> Int;
+      {error,no_integer} -> null
+    end.
