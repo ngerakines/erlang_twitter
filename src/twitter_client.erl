@@ -369,10 +369,15 @@ direct_messages(RootUrl, Login, Password, Args) ->
 collect_direct_messages(RootUrl, Login, Password, Page, LowID, Acc) ->
     Args = [{"page", integer_to_list(Page)}, {"since_id", integer_to_list(LowID)}],
     Messages = twitter_client:direct_messages(RootUrl, Login, Password, Args),
-    case length(Messages) of
-        20 -> collect_direct_messages(RootUrl, Login, Password, Page + 1, LowID, [Messages | Acc]);
-        0 -> lists:flatten(Acc);
-        _ -> lists:flatten([Messages | Acc])
+    case Messages of
+      error -> lists:flatten(Acc);
+      {error} -> lists:flatten(Acc);
+      _ ->
+        case length(Messages) of
+            20 -> collect_direct_messages(RootUrl, Login, Password, Page + 1, LowID, [Messages | Acc]);
+            0 -> lists:flatten(Acc);
+            _ -> lists:flatten([Messages | Acc])
+        end
     end.
 
 direct_new(RootUrl, Login, Password, Args) ->
