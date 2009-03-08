@@ -23,8 +23,7 @@ url_encode([H|T]) ->
             end
      end;
 
-url_encode([]) ->
-    [].
+url_encode([]) -> [].
 
 integer_to_hex(I) ->
     case catch erlang:integer_to_list(I, 16) of

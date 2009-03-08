@@ -57,3 +57,8 @@ By default, the _base\_url_ is set to "http://twitter.com/".
 ## Packaging
 
 Use `make package-debian` and `make install-debian` to build a .deb file for Debian deployment.
+
+## Contributions
+
+* Harish Mallipeddi
+* Joshua Miller

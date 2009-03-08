@@ -22,8 +22,8 @@
 %% OTHER DEALINGS IN THE SOFTWARE.
 %% 
 %% @author Nick Gerakines <nick@gerakines.net>
-%% @copyright 2008 Nick Gerakines
-%% @version 0.3
+%% @copyright 2008-2009 Nick Gerakines
+%% @version 0.4
 %% @doc Provides access to the Twitter web service. Mostly through the
 %% clever use of REST-like requests and XML parsing.
 %% 
@@ -54,7 +54,7 @@
 -behaviour(gen_server).
 
 -author("Nick Gerakines <nick@gerakines.net>").
--version("0.3").
+-version("0.4").
 
 -export([
     init/1, terminate/2, code_change/3,
@@ -95,16 +95,25 @@ start() ->
 %% @doc Start a twitter_client gen_server process for a Twitter user.
 add_session(Login, Password) ->
     gen_server:call({global, ?MODULE}, {add_session, Login, Password}, infinity).
-    
+
+%% @spec exists_session(Login) -> true | false
+%%       Login = string()
+%% @doc Determines if a login is know by the twitter client.
 exists_session(Login) ->
     gen_server:call({global, ?MODULE}, {exists_session, Login}, infinity).
 
+%% @spec set(Type, Value) -> Response
+%%       Type = base_url | delay
+%%       value = any()
+%%       Response = any()
+%% @doc Sets a configuration value in the twitter client.
 set(base_url, Value) ->
     gen_server:call({global, ?MODULE}, {base_url, Value}, infinity);
 
 set(delay, Value) ->
     gen_server:call({global, ?MODULE}, {delay, Value}, infinity).
 
+%% @doc Returns information on the twitter client.
 info() ->
     gen_server:call({global, ?MODULE}, {info}, infinity).
 
@@ -135,9 +144,6 @@ call(Client, Method) ->
 call(Client, Method, Args) ->
     gen_server:call({global, ?MODULE}, {Client, Method, Args}, infinity).
 
-%% % -
-%% % gen_server functions
-
 %% @private
 init(_) ->
     {ok, #erlang_twitter{
@@ -154,13 +160,13 @@ session_from_client(State, Client) ->
         true -> gb_trees:get(Client, State#erlang_twitter.sessions)
     end.
 
+%% @private
 handle_call({base_url, BaseUrl}, _From, State) ->
     {reply, ok, State#erlang_twitter{ base_url = BaseUrl }};
 
 handle_call({delay, Delay}, _From, State) ->
     {reply, ok, State#erlang_twitter{ delay = Delay }};
 
-%% Should work .. I think
 handle_call({should_wait}, _From, State) ->
     Now = calendar:datetime_to_gregorian_seconds(erlang:universaltime()),
     Delay = case State#erlang_twitter.delay of
@@ -251,11 +257,9 @@ terminate(_Reason, _State) -> ok.
 %% @private
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
-%% % -
-%% % Status API methods
-
-%% @doc Return a list of the most recent tweets as per the public timeline.
-%% This API call ignores the login and password strings given.
+%% @doc Return a list of the most recent tweets as per the public
+%% timeline. This API call ignores the login and password strings
+%% given.
 status_public_timeline(RootUrl, _Login, _Password, Args) ->
     Url = build_url(RootUrl ++ "statuses/public_timeline.xml", Args),
     Body = request_url(get, Url, nil, nil, nil),

@@ -1,12 +1,22 @@
-all: code
+LIBDIR=`erl -eval 'io:format("~s~n", [code:lib_dir()])' -s init stop -noshell`
+VERSION=0.4
 
-code: clean
-	erl -make
+all:
+	mkdir -p ebin/
+	(cd src;$(MAKE))
+
+test: all
+	prove -v t/*.t
 
 clean:
-	rm -rfv *.beam *.rel *.script *.boot erl_crash.dump erlang_twitter/ *.deb
+	(cd src;$(MAKE) clean)
+	rm -rf erl_crash.dump *.beam *.hrl
 
-install-osx: code
-	mkdir -p erlang_twitter-0.3/ebin/ && cp *.beam erlang_twitter-0.3/ebin/
-	mkdir -p erlang_twitter-0.3/include/ && cp include/* erlang_twitter-0.3/include/
-	cp -R erlang_twitter-0.3 /usr/local/lib/erlang/lib/
+package: clean
+	@mkdir erlang_twitter-$(VERSION)/ && cp -rf src eqct support t Makefile mysql.escript README.markdown erlang_twitter-$(VERSION)
+	@COPYFILE_DISABLE=true tar zcf erlang_twitter-$(VERSION).tgz erlang_twitter-$(VERSION)
+	@rm -rf erlang_twitter-$(VERSION)/
+
+install:
+	mkdir -p $(LIBDIR)/erlang_twitter-$(VERSION)/{ebin,include}
+	for i in include/*.hrl ebin/*.beam; do install $$i $(LIBDIR)/erlang_twitter-$(VERSION)/$$i ; done
