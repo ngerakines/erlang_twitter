@@ -1,5 +1,5 @@
 LIBDIR=`erl -eval 'io:format("~s~n", [code:lib_dir()])' -s init stop -noshell`
-VERSION=0.4
+VERSION=0.4.1
 
 all:
 	mkdir -p ebin/
@@ -10,10 +10,10 @@ test: all
 
 clean:
 	(cd src;$(MAKE) clean)
-	rm -rf erl_crash.dump *.beam *.hrl
+	rm -rf erl_crash.dump *.beam *.hrl erlang_twitter-$(VERSION).tgz
 
 package: clean
-	@mkdir erlang_twitter-$(VERSION)/ && cp -rf src eqct support t Makefile mysql.escript README.markdown erlang_twitter-$(VERSION)
+	@mkdir erlang_twitter-$(VERSION)/ && cp -rf include src support t Makefile README.markdown erlang_twitter-$(VERSION)
 	@COPYFILE_DISABLE=true tar zcf erlang_twitter-$(VERSION).tgz erlang_twitter-$(VERSION)
 	@rm -rf erlang_twitter-$(VERSION)/
 
