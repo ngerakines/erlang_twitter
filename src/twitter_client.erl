@@ -581,12 +581,12 @@ help_test(RootUrl, _, _, _) ->
 %% % Social Graph API Methods
 
 social_graph_friend_ids(RootUrl, Login, Password, _Args) ->
-    Url = build_url(RootUrl ++ "friends/ids/" ++ Login ++ ".xml", []),
+    Url = build_url(RootUrl ++ "friends/ids/" ++ twitter_client_utils:url_encode(Login) ++ ".xml", []),
     Body = request_url(get, Url, Login, Password, nil),
     parse_ids(Body).
 
 social_graph_follower_ids(RootUrl, Login, Password, _Args) ->
-    Url = build_url(RootUrl ++ "followers/ids/" ++ Login ++ ".xml", []),
+    Url = build_url(RootUrl ++ "followers/ids/" ++ twitter_client_utils:url_encode(Login) ++ ".xml", []),
     Body = request_url(get, Url, Login, Password, nil),
     parse_ids(Body).
 
@@ -635,7 +635,7 @@ headers(User, Pass) when is_binary(User) ->
     headers(binary_to_list(User), Pass);
 headers(User, Pass) when is_binary(Pass) ->
     headers(User, binary_to_list(Pass));
-headers(User, Pass) -> 
+headers(User, Pass) ->
     UP = base64:encode(User ++ ":" ++ Pass),
     Basic = lists:flatten(io_lib:fwrite("Basic ~s", [UP])),
     [{"User-Agent", "ErlangTwitterClient/0.1"}, {"Authorization", Basic}].
