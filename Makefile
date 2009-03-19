@@ -18,5 +18,5 @@ package: clean
 	@rm -rf erlang_twitter-$(VERSION)/
 
 install:
-	mkdir -p $(LIBDIR)/erlang_twitter-$(VERSION)/{ebin,include}
-	for i in include/*.hrl ebin/*.beam; do install $$i $(LIBDIR)/erlang_twitter-$(VERSION)/$$i ; done
+	mkdir -p $(prefix)/$(LIBDIR)/erlang_twitter-$(VERSION)/{ebin,include}
+	for i in include/*.hrl ebin/*.beam; do install $$i $(prefix)/$(LIBDIR)/erlang_twitter-$(VERSION)/$$i ; done
