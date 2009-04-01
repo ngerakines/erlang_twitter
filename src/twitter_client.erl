@@ -54,7 +54,7 @@
 -behaviour(gen_server).
 
 -author("Nick Gerakines <nick@gerakines.net>").
--version("0.4").
+-version("0.4.2").
 
 -export([
     init/1, terminate/2, code_change/3,
@@ -86,7 +86,7 @@ user_followers/4, user_friends/4, user_show/4, delay/0]).
 %% @doc Start a twitter_client gen_server process for a Twitter user.
 start() ->
     inets:start(),
-    gen_server:start_link({global, ?MODULE}, ?MODULE, [], []).
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 %% @spec add_session(Login, Password) -> ok
 %% where 
@@ -94,13 +94,13 @@ start() ->
 %%       Password = string()
 %% @doc Start a twitter_client gen_server process for a Twitter user.
 add_session(Login, Password) ->
-    gen_server:call({global, ?MODULE}, {add_session, Login, Password}, infinity).
+    gen_server:call({local, ?MODULE}, {add_session, Login, Password}, infinity).
 
 %% @spec exists_session(Login) -> true | false
 %%       Login = string()
 %% @doc Determines if a login is know by the twitter client.
 exists_session(Login) ->
-    gen_server:call({global, ?MODULE}, {exists_session, Login}, infinity).
+    gen_server:call({local, ?MODULE}, {exists_session, Login}, infinity).
 
 %% @spec set(Type, Value) -> Response
 %%       Type = base_url | delay
@@ -108,17 +108,17 @@ exists_session(Login) ->
 %%       Response = any()
 %% @doc Sets a configuration value in the twitter client.
 set(base_url, Value) ->
-    gen_server:call({global, ?MODULE}, {base_url, Value}, infinity);
+    gen_server:call({local, ?MODULE}, {base_url, Value}, infinity);
 
 set(delay, Value) ->
-    gen_server:call({global, ?MODULE}, {delay, Value}, infinity).
+    gen_server:call({local, ?MODULE}, {delay, Value}, infinity).
 
 %% @doc Returns information on the twitter client.
 info() ->
-    gen_server:call({global, ?MODULE}, {info}, infinity).
+    gen_server:call({local, ?MODULE}, {info}, infinity).
 
 delay() ->
-    gen_server:call({global, ?MODULE}, {should_wait}, infinity).    
+    gen_server:call({local, ?MODULE}, {should_wait}, infinity).    
 
 
 %% @equiv call(Client, Method, [])
@@ -142,7 +142,7 @@ call(Client, Method) ->
 %% Calling this method does not verify that the given gen_server process
 %% exists or is running.
 call(Client, Method, Args) ->
-    gen_server:call({global, ?MODULE}, {Client, Method, Args}, infinity).
+    gen_server:call({local, ?MODULE}, {Client, Method, Args}, infinity).
 
 %% @private
 init(_) ->
@@ -233,9 +233,7 @@ handle_call({Client, Method, Args}, _From, State) ->
         {Login, Password} ->
             try apply(twitter_client, Method, [State#erlang_twitter.base_url, Login, Password, Args])
             catch
-                X:Y ->
-                    io:format("error: ~p:~p~n", [X, Y]),
-                    {error, unsupported_method}
+                _X:_Y -> {error, unsupported_method}
             end;
         _ -> {error, unknown}
     end,
