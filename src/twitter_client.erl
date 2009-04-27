@@ -358,7 +358,7 @@ account_update_delivery_device(RootUrl, Login, Password, Args) ->
 account_rate_limit_status(RootUrl, Login, Password, Args) ->
     Url = build_url(RootUrl ++ "account/rate_limit_status.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
-    Body.
+    parse_rate_limit(Body).
 
 %% % -
 %% % Direct Message API methods
@@ -521,7 +521,10 @@ user_show(RootUrl, Login, Password, Args) ->
             build_url(UrlBase ++ "/" ++ Id ++ ".xml", RetArgs)
     end,
     Body = request_url(get, Url, Login, Password, nil),
-    parse_user(Body).
+    case Body of
+      {error} -> {error};
+      _ -> parse_user(Body)
+    end.
 
 %% % -
 %% % Notification API methods
@@ -742,6 +745,25 @@ parse_user(Body) when is_list(Body) ->
     end.
 
 %% @private
+parse_rate_limit(Node) when is_tuple(Node) ->
+  #rate_limit{
+      reset_time = text_or_default(Node, ["/hash/reset-time/text()"], ""),
+      reset_time_in_seconds = int_or_default(Node, ["/hash/reset-time-in-seconds/text()"], ""),
+      remaining_hits = int_or_default(Node, ["/hash/remaining-hits/text()"], ""),
+      hourly_limit = int_or_default(Node, ["/hash/hourly-limit/text()"], "")
+  };
+
+%% @private
+parse_rate_limit(Body) when is_list(Body) ->
+  case (catch xmerl_scan:string(Body, [{quiet, true}])) of
+      {'EXIT', _} -> {error, Body};
+      {error, _} -> {error, Body};
+      Result ->
+        {Xml, _Rest} = Result,
+        [parse_rate_limit(Node) || Node <- xmerl_xpath:string("/hash", Xml)]
+      end.
+
+%% @private
 parse_id(Node) ->
     Text = text_or_default(Node, ["/id/text()"], ""),
     twitter_client_utils:string_to_int(Text).
@@ -754,6 +776,14 @@ text_or_default(Xml, [Xpath | Tail], Default) ->
            (_, Acc) -> Acc
         end,
         Default,
-        xmerl_xpath:string(Xpath, Xml)
+        case Xml of
+          {error} -> Default;
+          _ -> xmerl_xpath:string(Xpath, Xml)
+        end
     ),
     text_or_default(Xml, Tail, Res).
+    
+%% @private
+int_or_default(_Xml, [], Default) -> Default;
+int_or_default(Xml, Xpath, Default) ->
+  twitter_client_utils:string_to_int(text_or_default(Xml, Xpath, Default)).
