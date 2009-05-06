@@ -61,19 +61,29 @@
     handle_call/3, handle_cast/2, handle_info/2
 ]).
 
--export([account_archive/4, account_end_session/4, account_rate_limit_status/4,
-account_update_delivery_device/4, account_update_location/4, account_verify_credentials/4,
-add_session/2, block_create/4, block_destroy/4, build_url/2, call/2, call/3,
-collect_account_archive/6, collect_direct_messages/6, collect_favorites/5, collect_user_friends/5,
-collect_user_followers/5, direct_destroy/4, direct_messages/4, direct_new/4,
-direct_sent/4, exists_session/1, favorites_create/4, favorites_destroy/4, favorites_favorites/4,
-friendship_create/4, friendship_destroy/4, friendship_exists/4, headers/2, help_test/4,
-info/0, notification_follow/4, notification_leave/4, parse_status/1, parse_statuses/1,
-parse_user/1, parse_users/1, request_url/5, session_from_client/2, set/2, start/0,
-social_graph_friend_ids/4, social_graph_follower_ids/4,
-status_destroy/4, status_friends_timeline/4, status_public_timeline/4, status_replies/4,
-status_show/4, status_update/4, status_user_timeline/4, text_or_default/3, user_featured/4,
-user_followers/4, user_friends/4, user_show/4, delay/0]).
+-export([account_archive/4, account_archive/5, account_end_session/4, 
+account_rate_limit_status/4, account_rate_limit_status/5, 
+account_update_delivery_device/4, account_update_delivery_device/5, 
+account_update_location/4, account_update_location/5, account_verify_credentials/4, 
+account_verify_credentials/5, add_session/2, block_create/4, block_create/5, 
+block_destroy/4, block_destroy/5, build_url/2, call/2, call/3,
+collect_account_archive/6, collect_account_archive/7, collect_direct_messages/6, 
+collect_direct_messages/7, collect_favorites/5, collect_favorites/6, collect_user_friends/5,
+collect_user_friends/6, collect_user_followers/5, collect_user_followers/6, direct_destroy/4, 
+direct_destroy/5, direct_messages/4, direct_messages/5, direct_new/4, direct_new/5,
+direct_sent/4, direct_sent/5, exists_session/1, favorites_create/4, favorites_create/5,
+favorites_destroy/4, favorites_destroy/5, favorites_favorites/4, favorites_favorites/5,
+friendship_create/4, friendship_create/5, friendship_destroy/4, friendship_destroy/5,
+friendship_exists/4, friendship_exists/5, headers/2, help_test/4, info/0,
+notification_follow/4, notification_follow/5, notification_leave/4, notification_leave/5,
+parse_status/1, parse_statuses/1, parse_user/1, parse_users/1, request_url/5, 
+session_from_client/2, set/2, start/0, social_graph_friend_ids/4, social_graph_friend_ids/6,
+social_graph_follower_ids/4, social_graph_follower_ids/6, status_destroy/4, status_destroy/5, 
+status_friends_timeline/4, status_friends_timeline/5, status_public_timeline/4, 
+status_public_timeline/5, status_replies/4, status_replies/5, status_show/4, status_show/5, 
+status_update/4, status_update/5, status_user_timeline/4, status_user_timeline/5, 
+text_or_default/3, user_featured/4, user_followers/4, user_followers/5, user_friends/4, 
+user_friends/5, user_show/4, user_show/5, delay/0]).
 
 -include("twitter_client.hrl").
 -include_lib("xmerl/include/xmerl.hrl").
@@ -262,7 +272,9 @@ status_public_timeline(RootUrl, _Login, _Password, Args) ->
     Url = build_url(RootUrl ++ "statuses/public_timeline.xml", Args),
     Body = request_url(get, Url, nil, nil, nil),
     parse_statuses(Body).
-
+status_public_timeline(RootUrl, _Consumer, _Token, _Secret, Args) ->
+    status_public_timeline(RootUrl, [], [], [], Args).
+    
 status_friends_timeline(RootUrl, Login, Password, Args) ->
     UrlBase = RootUrl ++ "statuses/friends_timeline",
     Url = case lists:keytake("id", 1, Args) of 
@@ -272,6 +284,16 @@ status_friends_timeline(RootUrl, Login, Password, Args) ->
             build_url(UrlBase ++ "/" ++ Id ++ ".xml", RetArgs)
     end,
     Body = request_url(get, Url, Login, Password, nil),
+    parse_statuses(Body).
+status_friends_timeline(RootUrl, Consumer, Token, Secret, Args) ->
+    UrlBase = RootUrl ++ "statuses/friends_timeline",
+    Url = case lists:keytake("id", 1, Args) of 
+        false ->
+            build_url(UrlBase ++ ".xml", Args);
+        {value, {"id", Id}, RetArgs} ->
+            build_url(UrlBase ++ "/" ++ Id ++ ".xml", RetArgs)
+    end,
+    Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
     parse_statuses(Body).
 
 status_user_timeline(RootUrl, Login, Password, Args) ->
@@ -284,6 +306,16 @@ status_user_timeline(RootUrl, Login, Password, Args) ->
     end,
     Body = request_url(get, Url, Login, Password, nil),
     parse_statuses(Body).
+status_user_timeline(RootUrl, Consumer, Token, Secret, Args) ->
+    UrlBase = RootUrl ++ "statuses/user_timeline",
+    Url = case lists:keytake("id", 1, Args) of 
+        false ->
+            build_url(UrlBase ++ ".xml", Args);
+        {value, {"id", Id}, RetArgs} ->
+            build_url(UrlBase ++ "/" ++ Id ++ ".xml", RetArgs)
+    end,
+    Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
+    parse_statuses(Body).
 
 status_show(RootUrl, Login, Password, Args) ->
     UrlBase = RootUrl ++ "statuses/show/",
@@ -294,15 +326,32 @@ status_show(RootUrl, Login, Password, Args) ->
             parse_status(Body);
         _ -> {error}
     end.
+status_show(RootUrl, Consumer, Token, Secret, Args) ->
+    UrlBase = RootUrl ++ "statuses/show/",
+    case Args of
+        [{"id", Id}] ->
+            Url = build_url(UrlBase ++ Id ++ ".xml", []),
+            Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
+            parse_status(Body);
+        _ -> {error}
+    end.
 
 status_update(RootUrl, Login, Password, Args) ->
     Url = RootUrl ++ "statuses/update.xml",
     Body = request_url(post, Url, Login, Password, Args),
     parse_status(Body).
+status_update(RootUrl, Consumer, Token, Secret, Args) ->
+    Url = RootUrl ++ "statuses/update.xml",
+    Body = oauth_request_url(post, Url, Consumer, Token, Secret, Args),
+    parse_status(Body).
 
 status_replies(RootUrl, Login, Password, Args) ->
     Url = build_url(RootUrl ++ "statuses/replies.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
+    parse_statuses(Body).
+status_replies(RootUrl, Consumer, Token, Secret, Args) ->
+    Url = build_url(RootUrl ++ "statuses/replies.xml", Args),
+    Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
     parse_statuses(Body).
 
 status_destroy(RootUrl, Login, Password, Args) ->
@@ -311,6 +360,15 @@ status_destroy(RootUrl, Login, Password, Args) ->
         [{"id", Id}] ->
             Url = build_url(UrlBase ++ Id ++ ".xml", []),
             Body = request_url(get, Url, Login, Password, nil),
+            parse_status(Body);
+        _ -> {error}
+    end.
+status_destroy(RootUrl, Consumer, Token, Secret, Args) ->
+    UrlBase = RootUrl ++ "statuses/destroy/",
+    case Args of
+        [{"id", Id}] ->
+            Url = build_url(UrlBase ++ Id ++ ".xml", []),
+            Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
             parse_status(Body);
         _ -> {error}
     end.
@@ -326,6 +384,14 @@ account_verify_credentials(RootUrl, Login, Password, _) ->
         {ok, {{_HTTPVersion, 401, _Text}, _Headers, _Body}} -> false;
         _ -> {error}
     end.
+account_verify_credentials(RootUrl, Consumer, Token, Secret, _) ->
+    Url = build_url(RootUrl ++ "account/verify_credentials.xml", []),
+    HTTPResult = oauth:get(Url, [], Consumer, Token, Secret),
+    case HTTPResult of
+        {ok, {{_HTTPVersion, 200, _Text}, _Headers, _Body}} -> true;
+        {ok, {{_HTTPVersion, 401, _Text}, _Headers, _Body}} -> false;
+        _ -> {error}
+    end.
 
 account_end_session(RootUrl, Login, Password, _) ->
     Url = build_url(RootUrl ++ "account/end_session", []),
@@ -335,6 +401,10 @@ account_archive(RootUrl, Login, Password, Args) ->
     Url = build_url(RootUrl ++ "account/archive.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
     parse_statuses(Body).
+account_archive(RootUrl, Consumer, Token, Secret, Args) ->
+    Url = build_url(RootUrl ++ "account/archive.xml", Args),
+    Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
+    parse_statuses(Body).    
 
 collect_account_archive(RootUrl, Login, Password, Page, Args, Acc) ->
     NArgs = [{"page", integer_to_list(Page)} ] ++ Args,
@@ -344,20 +414,40 @@ collect_account_archive(RootUrl, Login, Password, Page, Args, Acc) ->
         0 -> lists:flatten(Acc);
         _ -> lists:flatten([Messages | Acc])
     end.
+collect_account_archive(RootUrl, Consumer, Token, Secret, Page, Args, Acc) ->
+    NArgs = [{"page", integer_to_list(Page)} ] ++ Args,
+    Messages = twitter_client:account_archive(RootUrl, Consumer, Token, Secret, NArgs),
+    case length(Messages) of
+        80 -> collect_account_archive(RootUrl, Consumer, Token, Secret, Page + 1, Args, [Messages | Acc]);
+        0 -> lists:flatten(Acc);
+        _ -> lists:flatten([Messages | Acc])
+    end.
 
 account_update_location(RootUrl, Login, Password, Args) ->
     Url = build_url(RootUrl ++ "account/update_location.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
+    parse_user(Body).
+account_update_location(RootUrl, Consumer, Token, Secret, Args) ->
+    Url = build_url(RootUrl ++ "account/update_location.xml", Args),
+    Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
     parse_user(Body).
 
 account_update_delivery_device(RootUrl, Login, Password, Args) ->
     Url = build_url(RootUrl ++ "account/update_delivery_device.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
     parse_user(Body).
+account_update_delivery_device(RootUrl, Consumer, Token, Secret, Args) ->
+    Url = build_url(RootUrl ++ "account/update_delivery_device.xml", Args),
+    Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
+    parse_user(Body).
 
 account_rate_limit_status(RootUrl, Login, Password, Args) ->
     Url = build_url(RootUrl ++ "account/rate_limit_status.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
+    parse_rate_limit(Body).
+account_rate_limit_status(RootUrl, Consumer, Token, Secret, Args) ->
+    Url = build_url(RootUrl ++ "account/rate_limit_status.xml", Args),
+    Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
     parse_rate_limit(Body).
 
 %% % -
@@ -366,6 +456,10 @@ account_rate_limit_status(RootUrl, Login, Password, Args) ->
 direct_messages(RootUrl, Login, Password, Args) ->
     Url = build_url(RootUrl ++ "direct_messages.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
+    parse_statuses(Body).
+direct_messages(RootUrl, Consumer, Token, Secret, Args) ->
+    Url = build_url(RootUrl ++ "direct_messages.xml", Args),
+    Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
     parse_statuses(Body).
 
 collect_direct_messages(RootUrl, Login, Password, Page, LowID, Acc) ->
@@ -381,15 +475,36 @@ collect_direct_messages(RootUrl, Login, Password, Page, LowID, Acc) ->
             _ -> lists:flatten([Messages | Acc])
         end
     end.
+collect_direct_messages(RootUrl, Consumer, Token, Secret, Page, LowID, Acc) ->
+    Args = [{"page", integer_to_list(Page)}, {"since_id", integer_to_list(LowID)}],
+    Messages = twitter_client:direct_messages(RootUrl, Consumer, Token, Secret, Args),
+    case Messages of
+      error -> lists:flatten(Acc);
+      {error} -> lists:flatten(Acc);
+      _ ->
+        case length(Messages) of
+            20 -> collect_direct_messages(RootUrl, Consumer, Token, Secret, Page + 1, LowID, [Messages | Acc]);
+            0 -> lists:flatten(Acc);
+            _ -> lists:flatten([Messages | Acc])
+        end
+    end.
 
 direct_new(RootUrl, Login, Password, Args) ->
     Url = RootUrl ++ "direct_messages/new.xml",
     Body = request_url(post, Url, Login, Password, Args),
     parse_status(Body).
+direct_new(RootUrl, Consumer, Token, Secret, Args) ->
+    Url = RootUrl ++ "direct_messages/new.xml",
+    Body = oauth_request_url(get, Url, Consumer, Token, Secret, Args),
+    parse_statuses(Body).
 
 direct_sent(RootUrl, Login, Password, Args) ->
     Url = build_url(RootUrl ++ "direct_messages/sent.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
+    parse_statuses(Body).
+direct_sent(RootUrl, Consumer, Token, Secret, Args) ->
+    Url = build_url(RootUrl ++ "direct_messages/sent.xml", Args),
+    Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
     parse_statuses(Body).
 
 direct_destroy(RootUrl, Login, Password, Args) ->
@@ -398,6 +513,15 @@ direct_destroy(RootUrl, Login, Password, Args) ->
         [{"id", Id}] ->
             Url = build_url(UrlBase ++ Id ++ ".xml", []),
             Body = request_url(get, Url, Login, Password, nil),
+            parse_status(Body);
+        _ -> {error}
+    end.
+direct_destroy(RootUrl, Consumer, Token, Secret, Args) ->
+    UrlBase = RootUrl ++ "direct_messages/destroy/",
+    case Args of
+        [{"id", Id}] ->
+            Url = build_url(UrlBase ++ Id ++ ".xml", []),
+            Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
             parse_status(Body);
         _ -> {error}
     end.
@@ -415,12 +539,30 @@ favorites_favorites(RootUrl, Login, Password, Args) ->
     end,
     Body = request_url(get, Url, Login, Password, nil),
     parse_statuses(Body).
+favorites_favorites(RootUrl, Consumer, Token, Secret, Args) ->
+    UrlBase = RootUrl ++ "favorites",
+    Url = case lists:keytake("id", 1, Args) of 
+        false ->
+            build_url(UrlBase ++ ".xml", Args);
+        {value, {"id", Id}, RetArgs} ->
+            build_url(UrlBase ++ "/" ++ Id ++ ".xml", RetArgs)
+    end,
+    Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
+    parse_statuses(Body).
 
 collect_favorites(RootUrl, Login, Password, Page, Acc) ->
     Args = [{"page", integer_to_list(Page)}],
     Messages = twitter_client:favorites_favorites(RootUrl, Login, Password, Args),
     case length(Messages) of
         20 -> collect_favorites(RootUrl, Login, Password, Page + 1, [Messages | Acc]);
+        0 -> lists:flatten(Acc);
+        _ -> lists:flatten([Messages | Acc])
+    end.
+collect_favorites(RootUrl, Consumer, Token, Secret, Page, Acc) ->
+    Args = [{"page", integer_to_list(Page)}],
+    Messages = twitter_client:favorites_favorites(RootUrl, Consumer, Token, Secret, Args),
+    case length(Messages) of
+        20 -> collect_favorites(RootUrl, Consumer, Token, Secret, Page + 1, [Messages | Acc]);
         0 -> lists:flatten(Acc);
         _ -> lists:flatten([Messages | Acc])
     end.
@@ -434,6 +576,15 @@ favorites_create(RootUrl, Login, Password, Args) ->
             parse_status(Body);
         _ -> {error}
     end.
+favorites_create(RootUrl, Consumer, Token, Secret, Args) ->
+    UrlBase = RootUrl ++ "favorites/create/",
+    case Args of
+        [{"id", Id}] ->
+            Url = build_url(UrlBase ++ Id ++ ".xml", []),
+            Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
+            parse_status(Body);
+        _ -> {error}
+    end.
 
 favorites_destroy(RootUrl, Login, Password, Args) ->
     UrlBase = RootUrl ++ "favorites/destroy/",
@@ -441,6 +592,15 @@ favorites_destroy(RootUrl, Login, Password, Args) ->
         [{"id", Id}] ->
             Url = build_url(UrlBase ++ Id ++ ".xml", []),
             Body = request_url(get, Url, Login, Password, nil),
+            parse_status(Body);
+        _ -> {error}
+    end.
+favorites_destroy(RootUrl, Consumer, Token, Secret, Args) ->
+    UrlBase = RootUrl ++ "favorites/destroy/",
+    case Args of
+        [{"id", Id}] ->
+            Url = build_url(UrlBase ++ Id ++ ".xml", []),
+            Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
             parse_status(Body);
         _ -> {error}
     end.
@@ -452,6 +612,10 @@ friendship_exists(RootUrl, Login, Password, Args) ->
     Url = build_url(RootUrl ++ "friendships/exists.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
     Body == "<friends>true</friends>".
+friendship_exists(RootUrl, Consumer, Token, Secret, Args) ->
+    Url = build_url(RootUrl ++ "friendships/exists.xml", Args),
+    Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
+    Body == "<friends>true</friends>".
 
 friendship_create(RootUrl, Login, Password, Args) ->
     UrlBase = RootUrl ++ "friendships/create/",
@@ -462,6 +626,15 @@ friendship_create(RootUrl, Login, Password, Args) ->
             parse_user(Body);
         _ -> {error}
     end.
+friendship_create(RootUrl, Consumer, Token, Secret, Args) ->
+    UrlBase = RootUrl ++ "friendships/create/",
+    case Args of
+        [{"id", Id}] ->
+            Url = UrlBase ++ Id ++ ".xml",
+            Body = oauth_request_url(post, Url, Consumer, Token, Secret, Args),
+            parse_user(Body);
+        _ -> {error}
+    end.
 
 friendship_destroy(RootUrl, Login, Password, Args) ->
     UrlBase = RootUrl ++ "friendships/destroy/",
@@ -469,6 +642,15 @@ friendship_destroy(RootUrl, Login, Password, Args) ->
         [{"id", Id}] ->
             Url = build_url(UrlBase ++ Id ++ ".xml", []),
             Body = request_url(get, Url, Login, Password, nil),
+            parse_user(Body);
+        _ -> {error}
+    end.
+friendship_destroy(RootUrl, Consumer, Token, Secret, Args) ->
+    UrlBase = RootUrl ++ "friendships/destroy/",
+    case Args of
+        [{"id", Id}] ->
+            Url = build_url(UrlBase ++ Id ++ ".xml", []),
+            Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
             parse_user(Body);
         _ -> {error}
     end.
@@ -485,6 +667,16 @@ user_friends(RootUrl, Login, Password, Args) ->
     end,
     Body = request_url(get, Url, Login, Password, nil),
     parse_users(Body).
+user_friends(RootUrl, Consumer, Token, Secret, Args) ->
+    UrlBase = RootUrl ++ "statuses/friends",
+    Url = case lists:keytake("id", 1, Args) of 
+        false ->
+            build_url(UrlBase ++ ".xml", Args);
+        {value, {"id", Id}, RetArgs} ->
+            build_url(UrlBase ++ "/" ++ Id ++ ".xml", RetArgs)
+    end,
+    Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
+    parse_users(Body).
 
 collect_user_friends(RootUrl, Login, Password, Page, Acc) ->
     Friends = twitter_client:user_friends(RootUrl, Login, Password, [{"page", integer_to_list(Page)}, {"lite", "true"}]),
@@ -493,16 +685,34 @@ collect_user_friends(RootUrl, Login, Password, Page, Acc) ->
       0 -> lists:flatten(Acc);
       _ -> lists:flatten([Friends | Acc])
     end.
+collect_user_friends(RootUrl, Consumer, Token, Secret, Page, Acc) ->
+    Friends = twitter_client:user_friends(RootUrl, Consumer, Token, Secret, [{"page", integer_to_list(Page)}, {"lite", "true"}]),
+    case length(Friends) of
+      100 -> collect_user_friends(RootUrl, Consumer, Token, Secret, Page + 1, [Friends | Acc]);
+      0 -> lists:flatten(Acc);
+      _ -> lists:flatten([Friends | Acc])
+    end.
 
 user_followers(RootUrl, Login, Password, Args) ->
     Url = build_url(RootUrl ++ "statuses/followers.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
+    parse_users(Body).
+user_followers(RootUrl, Consumer, Token, Secret, Args) ->
+    Url = build_url(RootUrl ++ "statuses/followers.xml", Args),
+    Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
     parse_users(Body).
 
 collect_user_followers(RootUrl, Login, Password, Page, Acc) ->
     Followers = twitter_client:user_followers(RootUrl, Login, Password, [{"page", integer_to_list(Page)}, {"lite", "true"}]),
     case length(Followers) of
         100 -> collect_user_followers(RootUrl, Login, Password, Page + 1, [Followers | Acc]);
+        0 -> lists:flatten(Acc);
+        _ -> lists:flatten([Followers | Acc])
+    end.
+collect_user_followers(RootUrl, Consumer, Token, Secret, Page, Acc) ->
+    Followers = twitter_client:user_followers(RootUrl, Consumer, Token, Secret, [{"page", integer_to_list(Page)}, {"lite", "true"}]),
+    case length(Followers) of
+        100 -> collect_user_followers(RootUrl, Consumer, Token, Secret, Page + 1, [Followers | Acc]);
         0 -> lists:flatten(Acc);
         _ -> lists:flatten([Followers | Acc])
     end.
@@ -525,6 +735,19 @@ user_show(RootUrl, Login, Password, Args) ->
       {error} -> {error};
       _ -> parse_user(Body)
     end.
+user_show(RootUrl, Consumer, Token, Secret, Args) ->
+    UrlBase = RootUrl ++ "users/show",
+    Url = case lists:keytake("id", 1, Args) of 
+        false ->
+            build_url(UrlBase ++ ".xml", Args);
+        {value, {"id", Id}, RetArgs} ->
+            build_url(UrlBase ++ "/" ++ Id ++ ".xml", RetArgs)
+    end,
+    Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
+    case Body of
+      {error} -> {error};
+      _ -> parse_user(Body)
+    end.
 
 %% % -
 %% % Notification API methods
@@ -538,6 +761,15 @@ notification_follow(RootUrl, Login, Password, Args) ->
             case parse_user(Body) of [#user{ screen_name = Id }] -> true; _ -> false end;
         _ -> {error}
     end.
+notification_follow(RootUrl, Consumer, Token, Secret, Args) ->
+    UrlBase = RootUrl ++ "notifications/follow/",
+    case Args of
+        [{"id", Id}] ->
+            Url = build_url(UrlBase ++ Id ++ ".xml", []),
+            Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
+            case parse_user(Body) of [#user{ screen_name = Id }] -> true; _ -> false end;
+        _ -> {error}
+    end.
 
 notification_leave(RootUrl, Login, Password, Args) ->
     UrlBase = RootUrl ++ "notifications/leave/",
@@ -545,6 +777,15 @@ notification_leave(RootUrl, Login, Password, Args) ->
         [{"id", Id}] ->
             Url = build_url(UrlBase ++ Id ++ ".xml", []),
             Body = request_url(get, Url, Login, Password, nil),
+            case parse_user(Body) of [#user{ screen_name = Id }] -> true; _ -> false end;
+        _ -> {error}
+    end.
+notification_leave(RootUrl, Consumer, Token, Secret, Args) ->
+    UrlBase = RootUrl ++ "notifications/leave/",
+    case Args of
+        [{"id", Id}] ->
+            Url = build_url(UrlBase ++ Id ++ ".xml", []),
+            Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
             case parse_user(Body) of [#user{ screen_name = Id }] -> true; _ -> false end;
         _ -> {error}
     end.
@@ -561,6 +802,15 @@ block_create(RootUrl, Login, Password, Args) ->
             case parse_user(Body) of [#user{ screen_name = Id }] -> true; _ -> false end;
         _ -> {error}
     end.
+block_create(RootUrl, Consumer, Token, Secret, Args) ->
+    UrlBase = RootUrl ++ "blocks/create/",
+    case Args of
+        [{"id", Id}] ->
+            Url = build_url(UrlBase ++ Id ++ ".xml", []),
+            Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
+            case parse_user(Body) of [#user{ screen_name = Id }] -> true; _ -> false end;
+        _ -> {error}
+    end.
 
 block_destroy(RootUrl, Login, Password, Args) ->
     UrlBase = RootUrl ++ "blocks/destroy/",
@@ -568,6 +818,15 @@ block_destroy(RootUrl, Login, Password, Args) ->
         [{"id", Id}] ->
             Url = build_url(UrlBase ++ Id ++ ".xml", []),
             Body = request_url(get, Url, Login, Password, nil),
+            case parse_user(Body) of [#user{ screen_name = Id }] -> true; _ -> false end;
+        _ -> {error}
+    end.
+block_destroy(RootUrl, Consumer, Token, Secret, Args) ->
+    UrlBase = RootUrl ++ "blocks/destroy/",
+    case Args of
+        [{"id", Id}] ->
+            Url = build_url(UrlBase ++ Id ++ ".xml", []),
+            Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
             case parse_user(Body) of [#user{ screen_name = Id }] -> true; _ -> false end;
         _ -> {error}
     end.
@@ -587,10 +846,18 @@ social_graph_friend_ids(RootUrl, Login, Password, _Args) ->
     Url = build_url(RootUrl ++ "friends/ids/" ++ twitter_client_utils:url_encode(Login) ++ ".xml", []),
     Body = request_url(get, Url, Login, Password, nil),
     parse_ids(Body).
+social_graph_friend_ids(RootUrl, Login, Consumer, Token, Secret, _Args) ->
+    Url = build_url(RootUrl ++ "friends/ids/" ++ twitter_client_utils:url_encode(Login) ++ ".xml", []),
+    Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
+    parse_ids(Body).
 
 social_graph_follower_ids(RootUrl, Login, Password, _Args) ->
     Url = build_url(RootUrl ++ "followers/ids/" ++ twitter_client_utils:url_encode(Login) ++ ".xml", []),
     Body = request_url(get, Url, Login, Password, nil),
+    parse_ids(Body).
+social_graph_follower_ids(RootUrl, Login, Consumer, Token, Secret, _Args) ->
+    Url = build_url(RootUrl ++ "followers/ids/" ++ twitter_client_utils:url_encode(Login) ++ ".xml", []),
+    Body = oauth_request_url(get, Url, Consumer, Token, Secret, nil),
     parse_ids(Body).
 
 %% % -
@@ -628,7 +895,22 @@ request_url(post, Url, Login, Pass, Args) ->
     ),
     HTTPResult = http:request(post, {Url, headers(Login, Pass), "application/x-www-form-urlencoded", Body} , [], []),
     case HTTPResult of
-        {ok, {_, _, Res}} -> Res;
+        {ok, {_Status, _Headers, Body}} -> Body;
+        _ -> {error}
+    end.
+    
+%% @private
+oauth_request_url(get, Url, Consumer, Token, Secret, _) ->
+    HTTPResult = oauth:get(Url, [], Consumer, Token, Secret),
+    case HTTPResult of
+        {ok, {_Status, _Headers, Body}} -> Body;
+        _ -> {error}
+    end;
+
+oauth_request_url(post, Url, Consumer, Token, Secret, Args) ->
+    HTTPResult = oauth:post(Url, Args, Consumer, Token, Secret),
+    case HTTPResult of
+        {ok, {_Status, _Headers, Body}} -> Body;
         _ -> {error}
     end.
 
