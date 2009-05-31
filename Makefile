@@ -1,5 +1,5 @@
 LIBDIR=`erl -eval 'io:format("~s~n", [code:lib_dir()])' -s init stop -noshell`
-VERSION=0.4.2
+VERSION=0.4.3
 
 all:
 		mkdir -p ebin/
@@ -19,4 +19,4 @@ package: clean
 
 install:
 		for d in ebin include; do mkdir -p $(prefix)/$(LIBDIR)/erlang_twitter-$(VERSION)/$$d ; done
-		for i in include/*.hrl ebin/*.beam; do install $$i $(prefix)/$(LIBDIR)/erlang_twitter-$(VERSION)/$$i ; done
+		for i in include/*.hrl ebin/*.beam ebin/*.app; do install $$i $(prefix)/$(LIBDIR)/erlang_twitter-$(VERSION)/$$i ; done

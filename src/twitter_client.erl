@@ -54,7 +54,7 @@
 -behaviour(gen_server).
 
 -author("Nick Gerakines <nick@gerakines.net>").
--version("0.4.2").
+-version("0.4.3").
 
 -export([
     init/1, terminate/2, code_change/3,
