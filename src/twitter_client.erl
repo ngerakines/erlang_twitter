@@ -732,7 +732,7 @@ user_show(RootUrl, Login, Password, Args) ->
     end,
     Body = request_url(get, Url, Login, Password, nil),
     case Body of
-      {error} -> {error};
+      {error, Error} -> {error, Error};
       _ -> parse_user(Body)
     end.
 user_show(RootUrl, Consumer, Token, Secret, Args) ->
@@ -745,7 +745,7 @@ user_show(RootUrl, Consumer, Token, Secret, Args) ->
     end,
     Body = oauth_request_url(get, Url, Consumer, Token, Secret, Args),
     case Body of
-      {error} -> {error};
+      {error, Error} -> {error, Error};
       _ -> parse_user(Body)
     end.
 
@@ -879,12 +879,12 @@ build_url(Url, Args) ->
 
 %% @private
 request_url(get, Url, Login, Pass, _) ->
-    HTTPResult = http:request(get, {Url, headers(Login, Pass)}, [], []),
+    HTTPResult = http:request(get, {Url, headers(Login, Pass)}, [{timeout, 6000}], []),
     case HTTPResult of
         {ok, {_Status, _Headers, Body}} -> Body;
-        _ -> {error}
+        _ -> {error, HTTPResult}
     end;
-    
+
 request_url(post, Url, Login, Pass, Args) ->
     Body = lists:concat(
         lists:foldl(
@@ -893,26 +893,28 @@ request_url(post, Url, Login, Pass, Args) ->
             [K ++ "=" ++ twitter_client_utils:url_encode(V) || {K, V} <- Args]
         )
     ),
-    HTTPResult = http:request(post, {Url, headers(Login, Pass), "application/x-www-form-urlencoded", Body} , [], []),
+    HTTPResult = http:request(post, {Url, headers(Login, Pass), "application/x-www-form-urlencoded", Body} , [{timeout, 6000}], []),
     case HTTPResult of
         {ok, {_Status, _Headers, Body}} -> Body;
-        _ -> {error}
+        _ -> {error, HTTPResult}
     end.
-    
+
 %% @private
 oauth_request_url(get, Url, Consumer, Token, Secret, Args) ->
     HTTPResult = oauth:get(Url, Args, Consumer, Token, Secret),
     case HTTPResult of
+        {ok, {_Status, _Headers, "Failed to validate oauth signature or token"}} -> {oauth_error, "Failed to validate oauth signature or token"};
         {ok, {_Status, _Headers, Body}} -> Body;
-        _ -> {error}
+        _ -> HTTPResult
     end;
 
 oauth_request_url(post, Url, Consumer, Token, Secret, Args) ->
     HTTPResult = oauth:post(Url, Args, Consumer, Token, Secret),
     case HTTPResult of
+        {ok, {_Status, _Headers, "Failed to validate oauth signature or token"}} -> {oauth_error, "Failed to validate oauth signature or token"};
         {ok, {_Status, _Headers, Body}} -> Body;
-        _ -> {error}
-    end.
+        _ -> HTTPResult
+    end;
 
 %% @private
 headers(nil, nil) -> [{"User-Agent", "ErlangTwitterClient/0.1"}];
