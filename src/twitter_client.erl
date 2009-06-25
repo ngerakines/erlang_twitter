@@ -467,7 +467,7 @@ collect_direct_messages(RootUrl, Login, Password, Page, LowID, Acc) ->
     Messages = twitter_client:direct_messages(RootUrl, Login, Password, Args),
     case Messages of
       error -> lists:flatten(Acc);
-      {error} -> lists:flatten(Acc);
+      {error, _Error} -> lists:flatten(Acc);
       _ ->
         case length(Messages) of
             20 -> collect_direct_messages(RootUrl, Login, Password, Page + 1, LowID, [Messages | Acc]);
@@ -480,7 +480,7 @@ collect_direct_messages(RootUrl, Consumer, Token, Secret, Page, LowID, Acc) ->
     Messages = twitter_client:direct_messages(RootUrl, Consumer, Token, Secret, Args),
     case Messages of
       error -> lists:flatten(Acc);
-      {error} -> lists:flatten(Acc);
+      {error, _Error} -> lists:flatten(Acc);
       _ ->
         case length(Messages) of
             20 -> collect_direct_messages(RootUrl, Consumer, Token, Secret, Page + 1, LowID, [Messages | Acc]);
@@ -914,7 +914,7 @@ oauth_request_url(post, Url, Consumer, Token, Secret, Args) ->
         {ok, {_Status, _Headers, "Failed to validate oauth signature or token"}} -> {oauth_error, "Failed to validate oauth signature or token"};
         {ok, {_Status, _Headers, Body}} -> Body;
         _ -> HTTPResult
-    end;
+    end.
 
 %% @private
 headers(nil, nil) -> [{"User-Agent", "ErlangTwitterClient/0.1"}];
@@ -933,8 +933,8 @@ headers(User, Pass) ->
 %% @private
 parse_statuses(Body) ->
     case (catch xmerl_scan:string(Body, [{quiet, true}])) of
-        {'EXIT', _} -> {error};
-        {error, _} -> {error};
+        {'EXIT', _} -> {error, Body};
+        {error, _} -> {error, Body};
         Result ->
             {Xml, _Rest} = Result,
             [parse_status(Node) || Node <- lists:flatten([xmerl_xpath:string("/statuses/status", Xml), xmerl_xpath:string("/direct-messages/direct_message", Xml)])]
@@ -943,8 +943,8 @@ parse_statuses(Body) ->
 %% @private
 parse_ids(Body) ->
     case (catch xmerl_scan:string(Body, [{quiet, true}])) of
-        {'EXIT', _} -> {error};
-        {error, _} -> {error};
+        {'EXIT', _} -> {error, Body};
+        {error, _} -> {error, Body};
         Result ->
             {Xml, _Rest} = Result,
             [parse_id(Node) || Node <- xmerl_xpath:string("/ids/id", Xml)]
