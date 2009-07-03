@@ -456,11 +456,11 @@ account_rate_limit_status(RootUrl, Consumer, Token, Secret, Args) ->
 direct_messages(RootUrl, Login, Password, Args) ->
     Url = build_url(RootUrl ++ "direct_messages.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
-    parse_statuses(Body).
+    parse_messages(Body).
 direct_messages(RootUrl, Consumer, Token, Secret, Args) ->
     Url = RootUrl ++ "direct_messages.xml",
     Body = oauth_request_url(get, Url, Consumer, Token, Secret, Args),
-    parse_statuses(Body).
+    parse_messages(Body).
 
 collect_direct_messages(RootUrl, Login, Password, Page, LowID, Acc) ->
     Args = [{"page", integer_to_list(Page)}, {"since_id", integer_to_list(LowID)}],
@@ -492,20 +492,20 @@ collect_direct_messages(RootUrl, Consumer, Token, Secret, Page, LowID, Acc) ->
 direct_new(RootUrl, Login, Password, Args) ->
     Url = RootUrl ++ "direct_messages/new.xml",
     Body = request_url(post, Url, Login, Password, Args),
-    parse_status(Body).
+    parse_message(Body).
 direct_new(RootUrl, Consumer, Token, Secret, Args) ->
     Url = RootUrl ++ "direct_messages/new.xml",
     Body = oauth_request_url(post, Url, Consumer, Token, Secret, Args),
-    parse_statuses(Body).
+    parse_message(Body).
 
 direct_sent(RootUrl, Login, Password, Args) ->
     Url = build_url(RootUrl ++ "direct_messages/sent.xml", Args),
     Body = request_url(get, Url, Login, Password, nil),
-    parse_statuses(Body).
+    parse_messages(Body).
 direct_sent(RootUrl, Consumer, Token, Secret, Args) ->
     Url = RootUrl ++ "direct_messages/sent.xml",
     Body = oauth_request_url(get, Url, Consumer, Token, Secret, Args),
-    parse_statuses(Body).
+    parse_messages(Body).
 
 direct_destroy(RootUrl, Login, Password, Args) ->
     UrlBase = RootUrl ++ "direct_messages/destroy/",
@@ -976,6 +976,46 @@ parse_status(Body) when is_list(Body) ->
             {Xml, _Rest} = Result,
             [parse_status(Node) || Node <- xmerl_xpath:string("/status", Xml)]
     end.
+    
+%% @private
+parse_messages(Body) ->
+  case (catch xmerl_scan:string(Body, [{quiet, true}])) of
+      {'EXIT', _} -> {error, Body};
+      {error, _} -> {error, Body};
+      Result ->
+          {Xml, _Rest} = Result,
+          [parse_message(Node) || Node <- lists:flatten([xmerl_xpath:string("/direct-messages/direct_message", Xml)])]
+  end.
+
+%% @private
+parse_message(Node) when is_tuple(Node) ->
+  #message{
+    created_at = text_or_default(Node, ["/direct_message/created_at/text()"], ""), 
+    id = text_or_default(Node, ["/direct_message/id/text()"], ""),
+    text = text_or_default(Node, ["/direct_message/text/text()"], ""),
+    sender_id = text_or_default(Node, ["/direct_message/sender_id/text()"], ""), 
+    recipient_id = text_or_default(Node, ["/direct_message/recipient_id/text()"], ""), 
+    sender_screen_name = text_or_default(Node, ["/direct_message/sender_screen_name/text()"], ""), 
+    recipient_screen_name = text_or_default(Node, ["/direct_message/recipient_screen_name/text()"], ""), 
+    sender = case xmerl_xpath:string("/direct_message/sender", Node) of
+                [] -> "";
+                [SenderNode] -> parse_user(SenderNode)
+             end,
+    recipient = case xmerl_xpath:string("/direct_message/recipient", Node) of
+                  [] -> "";
+                  [RecipientNode] -> parse_user(RecipientNode)
+                end
+  };
+
+%% @private
+parse_message(Body) when is_list(Body) ->
+  case (catch xmerl_scan:string(Body, [{quiet, true}])) of
+      {'EXIT', _} -> {error, Body};
+      {error, _} -> {error, Body};
+      Result ->
+          {Xml, _Rest} = Result,
+          [parse_message(Node) || Node <- xmerl_xpath:string("/direct_message", Xml)]
+  end.
 
 %% @private
 parse_users(Body) ->

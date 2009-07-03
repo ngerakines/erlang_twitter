@@ -22,5 +22,6 @@
 %% OTHER DEALINGS IN THE SOFTWARE.
 
 -record(status, {created_at, id, text, source, truncated, in_reply_to_status_id, in_reply_to_user_id, favorited, user}).
+-record(message, {created_at, id, text, sender_id, recipient_id, sender_screen_name, recipient_screen_name, sender, recipient}).
 -record(user, {id, name, screen_name, location, description, profile_image_url, url, protected, followers_count, status, profile_background_color, profile_text_color, profile_link_color, profile_sidebar_fill_color, profile_sidebar_border_color, friends_count, created_at, favourites_count, utc_offset, time_zone, following, notifications, statuses_count}).
 -record(rate_limit, {reset_time, reset_time_in_seconds, remaining_hits, hourly_limit}).
