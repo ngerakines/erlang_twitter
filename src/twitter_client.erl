@@ -925,7 +925,7 @@ headers(User, Pass) when is_binary(Pass) ->
 headers(User, Pass) ->
     UP = base64:encode(User ++ ":" ++ Pass),
     Basic = lists:flatten(io_lib:fwrite("Basic ~s", [UP])),
-    [{"User-Agent", "ErlangTwitterClient/0.1"}, {"Authorization", Basic}].
+    [{"User-Agent", "ErlangTwitterClient/0.1"}, {"Authorization", Basic}, {"Host", "twitter.com"}].
 
 %% % -
 %% % Response parsing functions
