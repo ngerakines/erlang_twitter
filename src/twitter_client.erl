@@ -895,7 +895,7 @@ request_url(post, Url, Login, Pass, Args) ->
     ),
     HTTPResult = http:request(post, {Url, headers(Login, Pass), "application/x-www-form-urlencoded", Body} , [{timeout, 6000}], []),
     case HTTPResult of
-        {ok, {_Status, _Headers, Body}} -> Body;
+        {ok, {_Status, _Headers, Body2}} -> Body2;
         _ -> {error, HTTPResult}
     end.
 
