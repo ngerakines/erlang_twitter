@@ -1,6 +1,6 @@
 -module(twitter_client_utils).
 
--export([url_encode/1, string_to_int/1]).
+-export([url_encode/1, string_to_int/1, compose_body/1]).
 
 %% some utility functions stolen from yaws_api module
 
@@ -46,3 +46,12 @@ string_to_int(S) ->
       {Int,[]} -> Int;
       {error,no_integer} -> null
     end.
+
+compose_body(Args) ->
+    lists:concat(
+        lists:foldl(
+            fun (Rec, []) -> [Rec]; (Rec, Ac) -> [Rec, "&" | Ac] end,
+            [],
+            [K ++ "=" ++ twitter_client_utils:url_encode(V) || {K, V} <- Args]
+        )
+    ).

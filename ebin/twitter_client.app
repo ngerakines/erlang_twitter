@@ -1,7 +1,7 @@
 %%% -*- mode:erlang -*-
-{application, erlang_protobuffs, [
+{application, erlang_twitter, [
     {description, "An Erlang-native Twitter client."},
-    {vsn, "0.4.3"},
+    {vsn, "0.5"},
     {modules, [twitter_client, twitter_client_utils]},
     {registered, []},
     {applications, [kernel, stdlib, inets]},
