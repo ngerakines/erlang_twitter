@@ -2,7 +2,7 @@
 {application, erlang_twitter, [
     {description, "An Erlang-native Twitter client."},
     {vsn, "0.5"},
-    {modules, [twitter_client, twitter_client_utils]},
+    {modules, [twitter_client, twitter_client_utils, twitterbot]},
     {registered, []},
     {applications, [kernel, stdlib, inets]},
     {env, []}
