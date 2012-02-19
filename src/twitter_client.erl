@@ -364,7 +364,7 @@ social_graph_follower_ids(Auth, _) ->
 
 account_verify_credentials({Login, Password}, _) ->
     Url = build_url("account/verify_credentials.xml", []),
-    case http:request(get, {Url, headers(Login, Password)}, [], []) of
+    case httpc:request(get, {Url, headers(Login, Password)}, [], []) of
         {ok, {{_HTTPVersion, 200, _Text}, _Headers, _Body}} -> true;
         {ok, {{_HTTPVersion, 401, _Text}, _Headers, _Body}} -> false;
         _ -> {error}
@@ -387,13 +387,13 @@ build_url(Url, Args) ->
     ).
 
 request_url(get, Url, {Login, Pass}, _, Fun) ->
-    case http:request(get, {?BASE_URL(Url), headers(Login, Pass)}, [{timeout, 6000}], []) of
+    case httpc:request(get, {?BASE_URL(Url), headers(Login, Pass)}, [{timeout, 6000}], []) of
         {ok, {_, _, Body}} -> Fun(Body);
         Other -> {error, Other}
     end;
 request_url(post, Url, {Login, Pass}, Args, Fun) ->
     Body = twitter_client_utils:compose_body(Args),
-    case http:request(post, {?BASE_URL(Url), headers(Login, Pass), "application/x-www-form-urlencoded", Body} , [{timeout, 6000}], []) of
+    case httpc:request(post, {?BASE_URL(Url), headers(Login, Pass), "application/x-www-form-urlencoded", Body} , [{timeout, 6000}], []) of
         {ok, {_, _, Body2}} -> Fun(Body2);
         Other -> {error, Other}
     end;
